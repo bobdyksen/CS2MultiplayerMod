@@ -7,6 +7,7 @@ using CS2MultiplayerMod.Core.Networking;
 using CS2MultiplayerMod.Core.Protocol;
 using CS2MultiplayerMod.Core.Protocol.Messages;
 using CS2MultiplayerMod.Core.Session;
+using CS2MultiplayerMod.Core.Sync;
 
 static class Program
 {
@@ -19,7 +20,8 @@ static class Program
             CodecChecks();
             SessionChecks(false);
             SessionChecks(true);
-            Console.WriteLine("PASS: hover codecs, hostile payloads, TCP/TLS relay, identity stamping, clearing, backpressure and world-sync barriers.");
+            GrowableGateChecks();
+            Console.WriteLine("PASS: hover codecs, hostile payloads, TCP/TLS relay, identity stamping, clearing, backpressure, world-sync barriers and growable pause gate.");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
@@ -175,6 +177,49 @@ static class Program
             Assert(observed[2].States.Last().Hover.Length == 0, "clear after reload");
         }
         finally { foreach (var session in sessions) session.Stop(); }
+    }
+
+    static void GrowableGateChecks()
+    {
+        // The table GrowableSyncSystem.OnUpdate branches on. A barrier-only client used to
+        // take the same path as a disconnected city: discard queued lifecycle commands and
+        // turn the local spawner back on.
+        Assert(Decide(true, true, true, true) == GrowableGateDecision.Run,
+            "client in session applies");
+        Assert(Decide(true, true, true, false) == GrowableGateDecision.Run,
+            "host in session captures");
+        Assert(Decide(true, false, true, true) == GrowableGateDecision.HoldForSameWorld,
+            "barrier-only client keeps queued buildings and host authority");
+        Assert(Decide(true, false, true, false) == GrowableGateDecision.ReleaseLocalSimulation,
+            "host barrier still releases; the host is the authority");
+        Assert(Decide(false, true, true, true) == GrowableGateDecision.ReleaseLocalSimulation,
+            "simulation sync off grows locally");
+        Assert(Decide(false, false, true, true) == GrowableGateDecision.ReleaseLocalSimulation,
+            "simulation sync off during a pause still grows locally");
+        Assert(Decide(true, false, false, true) == GrowableGateDecision.ReleaseLocalSimulation,
+            "disconnected client must not replay a stale queue");
+        Assert(Decide(false, false, false, false) == GrowableGateDecision.ReleaseLocalSimulation,
+            "single player grows locally");
+
+        var kept = new List<int> { 1, 2, 3 };
+        ApplyGate(GrowableGateDecision.HoldForSameWorld, kept);
+        Assert(kept.Count == 3, "same-world pause retains the bounded queue");
+        ApplyGate(GrowableGateDecision.ReleaseLocalSimulation, kept);
+        Assert(kept.Count == 0, "release discards decisions that must not cross worlds");
+    }
+
+    static GrowableGateDecision Decide(bool simulationSync, bool gameplayReady, bool connected, bool client) =>
+        GrowableGate.Decide(simulationSync, gameplayReady, connected, client);
+
+    /// <summary>
+    /// Mirrors the two closed-gate arms in GrowableSyncSystem.OnUpdate: hold leaves the queue
+    /// alone, release clears it. World replacement does not come through here; the save install
+    /// calls SyncInbox.DrainAll, which is what stops a held queue replaying onto a new city.
+    /// </summary>
+    static void ApplyGate(GrowableGateDecision decision, List<int> queued)
+    {
+        if (decision == GrowableGateDecision.HoldForSameWorld) return;
+        if (decision == GrowableGateDecision.ReleaseLocalSimulation) queued.Clear();
     }
 
     sealed class Observer : SessionObserver
