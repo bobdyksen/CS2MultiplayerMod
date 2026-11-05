@@ -269,14 +269,26 @@ namespace CS2MultiplayerMod.Game.Sync.Systems
                 MultiplayerService service = Mod.Service;
                 if (service == null) return;
 
-                if (!service.SimulationSyncReady)
+                MultiplayerSession session = service.Session;
+                // SimulationSyncReady folds "sync is off" and "the world-sync gate is closed"
+                // into one flag. Those are different cities: sync off must grow locally, a
+                // barrier-only pause must not. See GrowableGate.
+                GrowableGateDecision gate = GrowableGate.Decide(
+                    service.SimulationSyncEnabled,
+                    service.GameplaySyncReady,
+                    session.Status == SessionStatus.Connected,
+                    session.Role == SessionRole.Client);
+                if (gate == GrowableGateDecision.HoldForSameWorld)
+                {
+                    ApplyLocalAuthority(session);
+                    return;
+                }
+                if (gate == GrowableGateDecision.ReleaseLocalSimulation)
                 {
                     DrainQueue();
                     RestoreLocalAuthority();
                     return;
                 }
-
-                MultiplayerSession session = service.Session;
                 long now = service.NowMs;
                 PrunePlayerPlacedGrowables(now);
                 ApplyLocalAuthority(session);
