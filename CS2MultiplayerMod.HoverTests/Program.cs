@@ -8,6 +8,7 @@ using CS2MultiplayerMod.Core.Protocol;
 using CS2MultiplayerMod.Core.Protocol.Messages;
 using CS2MultiplayerMod.Core.Session;
 using CS2MultiplayerMod.Core.Sync;
+using CS2MultiplayerMod.Core.Sync.ModSync;
 
 static class Program
 {
@@ -21,7 +22,8 @@ static class Program
             SessionChecks(false);
             SessionChecks(true);
             GrowableGateChecks();
-            Console.WriteLine("PASS: hover codecs, hostile payloads, TCP/TLS relay, identity stamping, clearing, backpressure, world-sync barriers and growable pause gate.");
+            ModSyncChecks();
+            Console.WriteLine("PASS: hover codecs, hostile payloads, TCP/TLS relay, identity stamping, clearing, backpressure, world-sync barriers, growable pause gate, mod-state backlog and node identity.");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
@@ -216,6 +218,63 @@ static class Program
     /// alone, release clears it. World replacement does not come through here; the save install
     /// calls SyncInbox.DrainAll, which is what stops a held queue replaying onto a new city.
     /// </summary>
+    static void ModSyncChecks()
+    {
+        var backlog = new ModStateBacklog<string>(2, 4);
+        backlog.Admit("a", "a1");
+        backlog.Admit("b", "b1");
+        backlog.Admit("a", "a2");
+        string value;
+        Assert(backlog.TryGet("a", out value) && value == "a2", "repeated update keeps the latest closure");
+        Assert(backlog.Count == 2, "a repeated update does not take another slot");
+
+        backlog.Admit("c", "c1");
+        backlog.Admit("d", "d1");
+        Assert(backlog.Count == 4, "a burst is kept through the apply window");
+        Assert(backlog.TryGet("b", out value) && value == "b1", "nothing is shed before the apply pass");
+        Assert(backlog.TryGet("d", out value) && value == "d1", "the newest closure is still queued");
+        Assert(backlog.TrimExcess(), "shedding the overflow asks for recovery once");
+        Assert(backlog.Count == 2, "the waiting set returns to the active limit");
+        Assert(backlog.TryGet("c", out value) && value == "c1", "newer carrier survived the shed");
+        Assert(backlog.TryGet("d", out value) && value == "d1", "newest carrier survived the shed");
+        Assert(!backlog.TryGet("a", out value) && !backlog.TryGet("b", out value), "oldest carriers were the ones shed");
+        Assert(!backlog.TrimExcess(), "a second shed in the same episode does not ask again");
+
+        backlog.Admit("d", "d2");
+        Assert(backlog.TryGet("d", out value) && value == "d2" && backlog.Count == 2,
+            "an unresolved carrier still accepts its latest state");
+
+        var hard = new ModStateBacklog<int>(1, 2);
+        hard.Admit("a", 1);
+        hard.Admit("b", 2);
+        hard.Admit("c", 3);
+        int number;
+        Assert(!hard.TryGet("a", out number), "past the hard limit the oldest goes, not the arrival");
+        Assert(hard.TryGet("c", out number) && number == 3, "past the hard limit the newest state is kept");
+        Assert(hard.TrimExcess(), "hard-limit loss asks for recovery");
+        Assert(!hard.ConsumeRecovery() && !hard.TrimExcess(), "recovery is not requested again while the episode continues");
+        hard.Clear();
+        hard.Admit("a", 1);
+        hard.Admit("b", 2);
+        hard.Admit("c", 3);
+        Assert(hard.TrimExcess(), "a cleared episode can ask for recovery again");
+
+        float radius = ModNodeMatch.IdentityRadiusSquared;
+        float vertical = ModNodeMatch.VerticalSlackMeters;
+        Assert(ModNodeMatch.Select(new[] { 0.01f }, new[] { 0f }, radius, vertical) == 0,
+            "one node on the transmitted point matches");
+        Assert(ModNodeMatch.Select(new[] { 4f }, new[] { 0f }, radius, vertical) == -1,
+            "a missing node is not replaced by a junction two metres away");
+        Assert(ModNodeMatch.Select(new[] { 0.01f, 4f }, new[] { 0f, 0f }, radius, vertical) == 0,
+            "an exact node stays exact when another junction is only nearby");
+        Assert(ModNodeMatch.Select(new[] { 0.01f, 0.04f }, new[] { 0f, 0f }, radius, vertical) == -1,
+            "two nodes inside the identity radius are ambiguous");
+        Assert(ModNodeMatch.Select(new[] { 0.01f }, new[] { 20f }, radius, vertical) == -1,
+            "a node at the wrong elevation is missing");
+        Assert(ModNodeMatch.Select(new float[0], new float[0], radius, vertical) == -1,
+            "no candidate is unresolved");
+    }
+
     static void ApplyGate(GrowableGateDecision decision, List<int> queued)
     {
         if (decision == GrowableGateDecision.HoldForSameWorld) return;

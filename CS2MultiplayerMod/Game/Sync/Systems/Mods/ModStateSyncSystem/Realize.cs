@@ -5,6 +5,7 @@ using CS2MultiplayerMod.Core.Session;
 using CS2MultiplayerMod.Core.Sync.ModSync;
 using CS2MultiplayerMod.Game.Diagnostics;
 using CS2MultiplayerMod.Game.Sync.Commands;
+using CS2MultiplayerMod.Game.Sync.Infrastructure;
 using CS2MultiplayerMod.Game.Sync.ModSync;
 using Unity.Entities;
 
@@ -12,12 +13,6 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
 {
     public partial class ModStateSyncSystem
     {
-        /// <summary>
-        /// Closures waiting for something they name. Well above what a burst of edits produces;
-        /// past it the oldest is dropped rather than letting a stuck carrier grow without limit.
-        /// </summary>
-        private const int MaxHeld = 256;
-
         private const int ComplaintThrottleMs = 10000;
 
         /// <summary>One carrier's most recent closure, and how long it has been waiting.</summary>
@@ -27,6 +22,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
             public long FirstSeenMs;
             public string LastDetail;
             public int WaitedFrames;
+            public bool NotedUnresolved;
         }
 
         /// <summary>
@@ -34,10 +30,14 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
         /// newer one for the same carrier replaces the older entirely - there is no sense in
         /// applying a superseded description of the same junction first.
         /// </summary>
-        private readonly Dictionary<string, Held> _held =
-            new Dictionary<string, Held>(System.StringComparer.Ordinal);
+        /// <summary>
+        /// Closures waiting for something they name. Latest per carrier, bounded, and a shed
+        /// asks once for the host world instead of forgetting that carrier forever.
+        /// </summary>
+        private readonly ModStateBacklog<Held> _held = new ModStateBacklog<Held>();
 
         private readonly List<string> _finished = new List<string>();
+        private readonly List<string> _scanKeys = new List<string>();
         private ModClosureApply _apply;
         private ModTypeBinding _applyBinding;
         private readonly Dictionary<string, ModEntityRef> _awaitingSettle =
@@ -48,8 +48,15 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
         private void RealizeIncoming(MultiplayerSession session, long now)
         {
             Receive(session, now);
-            if (!ModSyncFeature.ApplyReceived || _held.Count == 0) return;
+            if (ModSyncFeature.ApplyReceived && _held.Count > 0)
+                ApplyHeld(session, now);
+            // Shed after apply, so a burst that can be written this frame is not discarded
+            // to make room, and a hard-limit shed during receive still asks exactly once.
+            if (_held.TrimExcess()) RequestBacklogRecovery();
+        }
 
+        private void ApplyHeld(MultiplayerSession session, long now)
+        {
             if (_apply == null || _applyBinding != _binding)
             {
                 _apply = new ModClosureApply(EntityManager, _identity, _binding, _catalog);
@@ -57,9 +64,13 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
             }
 
             _finished.Clear();
-            foreach (KeyValuePair<string, Held> pair in _held)
+            _held.CopyKeys(_scanKeys);
+            for (int scan = 0; scan < _scanKeys.Count; scan++)
             {
-                Held held = pair.Value;
+                string key = _scanKeys[scan];
+                Held held;
+                if (!_held.TryGet(key, out held)) continue;
+                KeyValuePair<string, Held> pair = new KeyValuePair<string, Held>(key, held);
                 ModApplyOutcome outcome;
                 try
                 {
@@ -103,18 +114,30 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
                 held.LastDetail = _apply.Detail;
                 if (now - held.FirstSeenMs < ModSyncFeature.UnresolvedHoldMs) continue;
 
-                // The road or building it belongs to never turned up. Held rather than guessed at,
-                // and now given up on by name, because applying it somewhere else would be worse.
-                _finished.Add(pair.Key);
+                // Still the latest closure for this carrier, so it stays queued and is retried.
+                // Forgetting it here is how a road that appears a moment later never receives the
+                // edit: the sender already recorded the send and will not repeat it. If the set
+                // has to shrink, TrimExcess sheds the oldest and asks once for the host world.
+                if (held.NotedUnresolved) continue;
+                held.NotedUnresolved = true;
                 _unresolvedGaveUp++;
-                Complain(pair.Key, "Gave up on mod state at " + pair.Key + " after " +
+                Complain(pair.Key, "Mod state still unresolved at " + pair.Key + " after " +
                     (ModSyncFeature.UnresolvedHoldMs / 1000) + "s: " +
                     (outcome == ModApplyOutcome.CarrierMissing
-                        ? "this machine has no such object"
-                        : "it refers to " + held.LastDetail + ", which is not here"), null);
+                        ? "this machine has no such object yet"
+                        : "it refers to " + held.LastDetail + ", which is not here yet"), null);
             }
 
             for (int i = 0; i < _finished.Count; i++) _held.Remove(_finished[i]);
+        }
+
+        private static void RequestBacklogRecovery()
+        {
+            SyncInbox.RequestResync(ResyncReport
+                .Create("mod state backlog shed an unapplied closure", "modsync",
+                    ResyncEvidence.StreamLoss)
+                .About("mod state")
+                .Tried("kept the newest closures and asked once for the host world"));
         }
 
         private void Receive(MultiplayerSession session, long now)
@@ -143,22 +166,17 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
                     command.Snapshot.Satellites.Count + " satellite(s))");
 
                 Held existing;
-                if (_held.TryGetValue(key, out existing))
+                if (_held.TryGet(key, out existing))
                 {
                     existing.Snapshot = command.Snapshot;
                     existing.FirstSeenMs = now;
                     existing.WaitedFrames = 0;
+                    existing.NotedUnresolved = false;
+                    _held.NoteUpdated(key);
                     continue;
                 }
 
-                if (_held.Count >= MaxHeld)
-                {
-                    SyncLog.Warn(LogTopic.ModSync, "Mod state backlog is full (" + MaxHeld +
-                        "); dropping the change at " + key + ".");
-                    continue;
-                }
-
-                _held.Add(key, new Held { Snapshot = command.Snapshot, FirstSeenMs = now });
+                _held.Admit(key, new Held { Snapshot = command.Snapshot, FirstSeenMs = now });
             }
         }
 

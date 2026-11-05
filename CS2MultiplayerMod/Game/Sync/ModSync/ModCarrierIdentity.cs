@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Colossal.Collections;
 using Colossal.Mathematics;
 using CS2MultiplayerMod.Core.Sync.ModSync;
@@ -25,14 +26,17 @@ namespace CS2MultiplayerMod.Game.Sync.ModSync
     internal sealed class ModCarrierIdentity
     {
         /// <summary>
-        /// How far a lookup may stray from the transmitted position. Both machines' worlds came
-        /// from the same savegame, so this covers float noise and a node that a local edit nudged -
-        /// not a search for something plausible nearby.
+        /// Search-box extent. A hit inside it is not yet a match: <see cref="ModNodeMatch"/>
+        /// accepts only the unique node inside the half-metre identity the wire key uses.
         /// </summary>
-        private const float ToleranceXZ = 3f;
+        private const float ToleranceXZ = ModNodeMatch.SearchRadiusMeters;
 
         /// <summary>Vertical slack. Generous, because elevation is re-derived on each machine.</summary>
-        private const float ToleranceY = 12f;
+        private const float ToleranceY = ModNodeMatch.VerticalSlackMeters;
+
+        private readonly List<Entity> _nodeCandidates = new List<Entity>(16);
+        private readonly List<float> _nodeDistanceSq = new List<float>(16);
+        private readonly List<float> _nodeVertical = new List<float>(16);
 
         private readonly EntityManager _entities;
         private readonly PrefabSystem _prefabs;
@@ -138,12 +142,15 @@ namespace CS2MultiplayerMod.Game.Sync.ModSync
         private bool TryFindNode(float3 wanted, out Entity found)
         {
             found = Entity.Null;
-            float best = float.MaxValue;
+            _nodeCandidates.Clear();
+            _nodeDistanceSq.Clear();
+            _nodeVertical.Clear();
 
             var candidates = new NativeList<Entity>(16, Allocator.Temp);
             try
             {
                 CollectNets(wanted, candidates);
+                float search = ToleranceXZ * ToleranceXZ;
                 for (int i = 0; i < candidates.Length; i++)
                 {
                     Entity candidate = candidates[i];
@@ -152,19 +159,25 @@ namespace CS2MultiplayerMod.Game.Sync.ModSync
 
                     float3 position =
                         _entities.GetComponentData<global::Game.Net.Node>(candidate).m_Position;
-                    if (math.abs(position.y - wanted.y) > ToleranceY) continue;
+                    float vertical = math.abs(position.y - wanted.y);
                     float distance = math.distancesq(position.xz, wanted.xz);
-                    if (distance > ToleranceXZ * ToleranceXZ || distance >= best) continue;
+                    if (distance > search) continue;
 
-                    best = distance;
-                    found = candidate;
+                    _nodeCandidates.Add(candidate);
+                    _nodeDistanceSq.Add(distance);
+                    _nodeVertical.Add(vertical);
                 }
             }
             finally
             {
                 candidates.Dispose();
             }
-            return found != Entity.Null;
+
+            int index = ModNodeMatch.Select(_nodeDistanceSq, _nodeVertical,
+                ModNodeMatch.IdentityRadiusSquared, ToleranceY);
+            if (index < 0) return false;
+            found = _nodeCandidates[index];
+            return true;
         }
 
         /// <summary>
