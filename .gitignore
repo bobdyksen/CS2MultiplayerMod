@@ -14,7 +14,8 @@ CS2MultiplayerMod/UI/build/
 CS2MultiplayerMod/UI/artifacts/
 
 docs/
-tools/
+# Root toolchain scratch only. A bare tools/ also ignores CS2MultiplayerMod/UI/tools.
+/tools/
 .claude/
 .idea
 CLAUDE.md
