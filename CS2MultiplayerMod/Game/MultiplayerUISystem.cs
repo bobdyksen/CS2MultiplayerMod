@@ -477,7 +477,7 @@ namespace CS2MultiplayerMod.Game
                 "Either CS2MultiplayerMod.mjs is not in the mod folder, or another mod's broken UI module " +
                 "(known offender: Gooee) crashed the game's UI-module load chain before it reached this mod. " +
                 "Check the game's UI log for JS errors from other mods and remove the broken mod. " +
-                "Joining still works without the button via Options > CS2 Multiplayer Mod > Join Game.");
+                "Joining still works without the button via Options > ZulutimeMultiplayerMod > Join Game.");
         }
     }
 }

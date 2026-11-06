@@ -1,4 +1,4 @@
-# CS2 Multiplayer Mod
+# ZulutimeMultiplayerMod
 
 ## Introduction
 

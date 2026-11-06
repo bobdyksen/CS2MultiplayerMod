@@ -1,9 +1,9 @@
 ---
-title: CS2 Multiplayer Mod
+title: ZulutimeMultiplayerMod
 description: "One player hosts, everyone else joins and downloads the host's city. Roads, zoning, services, finances, time and weather stay in sync while you build together."
 ---
 
-# CS2 Multiplayer Mod
+# ZulutimeMultiplayerMod
 
 One player hosts, everyone else joins and downloads the host's city. Roads, zoning,
 services, finances, progression, time and weather stay in sync while you build together.

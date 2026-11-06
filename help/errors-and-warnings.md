@@ -5,7 +5,7 @@ description: "Every error and warning the mod can show, what it means and what t
 
 # Error and Warning Reference
 
-This page lists the errors and warnings a player can encounter in CS2 Multiplayer Mod. It covers the messages shown in the multiplayer UI and the warning families written to the game log. Dynamic details such as addresses, player names, prefab names, ports, and exception text are shown in angle brackets.
+This page lists the errors and warnings a player can encounter in ZulutimeMultiplayerMod. It covers the messages shown in the multiplayer UI and the warning families written to the game log. Dynamic details such as addresses, player names, prefab names, ports, and exception text are shown in angle brackets.
 
 Start with the exact headline shown in game. If the UI only says that multiplayer could not complete the connection, check the nearby detail and then see [Generic connection failure](#multiplayer-could-not-complete-the-connection).
 
@@ -27,7 +27,7 @@ Possible internal details:
 - `Protocol mismatch: host v<version>, this build v<version>.`
 - `Mod version mismatch: host <version>, client <version>.`
 
-Update CS2 Multiplayer Mod on both computers and restart both games. A host can enable Ignore Mod Compatibility Checks (Own Risk) to admit a different multiplayer-mod build when both builds still use the same network protocol. A protocol mismatch cannot be ignored because the builds may encode network data differently.
+Update ZulutimeMultiplayerMod on both computers and restart both games. A host can enable Ignore Mod Compatibility Checks (Own Risk) to admit a different multiplayer-mod build when both builds still use the same network protocol. A protocol mismatch cannot be ignored because the builds may encode network data differently.
 
 See [Mod Version Issues](troubleshooting.md#mod-version-issues).
 
@@ -183,7 +183,7 @@ In normal mode this warning blocks Host and Join. Disable the listed mods in the
 
 ### Compatibility check ignored
 
-Ignore Mod Compatibility Checks (Own Risk) is enabled while other mods are active, or a host admitted a different CS2 Multiplayer Mod build. This is advisory but serious: desyncs, missing prefabs, broken saves, and crashes are possible. The network protocol, game version, and DLC set are still checked.
+Ignore Mod Compatibility Checks (Own Risk) is enabled while other mods are active, or a host admitted a different ZulutimeMultiplayerMod build. This is advisory but serious: desyncs, missing prefabs, broken saves, and crashes are possible. The network protocol, game version, and DLC set are still checked.
 
 ### Invalid port or player limit
 
@@ -216,7 +216,7 @@ Recognizable messages include:
 - `menu connection view could not be registered`
 - `in-game connection view could not be registered`
 
-Another UI mod can stop the game's UI-module chain, or the multiplayer `.mjs` file may be missing. Remove or update the UI mod named near the first JavaScript exception. Joining remains available through Options > CS2 Multiplayer Mod > Join Game when the generated options UI is working.
+Another UI mod can stop the game's UI-module chain, or the multiplayer `.mjs` file may be missing. Remove or update the UI mod named near the first JavaScript exception. Joining remains available through Options > ZulutimeMultiplayerMod > Join Game when the generated options UI is working.
 
 ### Steam Relay transport warnings
 
@@ -282,7 +282,7 @@ Include:
 1. The exact UI headline and detail.
 2. Whether each player used Steam Relay or Direct Connection.
 3. Whether Ignore Mod Compatibility Checks (Own Risk) was enabled and which other mods were active.
-4. The game and CS2 Multiplayer Mod versions from both computers.
+4. The game and ZulutimeMultiplayerMod versions from both computers.
 5. `CS2MP-flight.log` from `%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\Logs\` on the affected computers. Send it after the problem occurs and before repeatedly restarting, because later runs can rotate diagnostic history.
 
 `CS2MP-flight.log` is the one file to send. It carries every line the mod writes plus the crash detail the readable log cannot keep, and unlike the game's own log it is not wiped when the game restarts. `Player.log` and `CS2MultiplayerMod.log` are the readable versions of the same events, and are worth adding when someone asks for them.

@@ -18,11 +18,11 @@ description: "Requirements, installing through Paradox Mods, hosting your first 
 
 ## Install { #install }
 
-1. Find CS2 Multiplayer Mod on [Paradox Mods](https://mods.paradoxplaza.com/mods/150432/Windows).
+1. Find ZulutimeMultiplayerMod on [Paradox Mods](https://mods.paradoxplaza.com/mods/150432/Windows).
 2. Add it to an empty playset and enable it.
 3. Restart Cities: Skylines II if the game asks you to.
 
-Open Options afterwards. If CS2 Multiplayer Mod does not appear there, follow
+Open Options afterwards. If ZulutimeMultiplayerMod does not appear there, follow
 [Menu issues](troubleshooting.md#menu-issues).
 
 ## Play together { #play-together }

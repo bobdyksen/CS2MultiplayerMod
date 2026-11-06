@@ -172,7 +172,7 @@ namespace CS2MultiplayerMod.Game
 
             _lastFault = detail;
             _log.Warn(LogTopic.Session, "Cannot " + action + ": " + detail +
-                ". Multiplayer runs only with CS2 Multiplayer Mod alone - disable the " +
+                ". Multiplayer runs only with ZulutimeMultiplayerMod alone - disable the " +
                 "others in the active playset and restart the game.");
             return true;
         }

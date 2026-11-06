@@ -110,12 +110,12 @@ join.
 Hosting and joining are blocked while any other mod is active in your Paradox Mods
 playset - including asset-only mods such as maps, prop packs and prefab packs.
 
-1. Disable every mod except CS2 Multiplayer Mod in your active playset. A playset with only
+1. Disable every mod except ZulutimeMultiplayerMod in your active playset. A playset with only
    this mod is the safest setup.
 2. Wait a few seconds; the banner clears on its own.
 3. If it says the mods are *still loaded*, restart the game once.
 
-Advanced users can turn the check off under Options ▸ CS2 Multiplayer Mod ▸ General ▸
+Advanced users can turn the check off under Options ▸ ZulutimeMultiplayerMod ▸ General ▸
 Ignore Mod Compatibility Checks (Own Risk), which permits other mods and mixed mod builds
 at the cost of desyncs, broken cities and crashes. Full details:
 [Mods and compatibility](mods.md).
@@ -135,7 +135,7 @@ If the button is still missing after a restart, continue below.
 
 ### The Multiplayer button is missing at every launch
 
-Go to options. Check that CS2MultiplayerMod appears in settings. If not:
+Go to options. Check that ZulutimeMultiplayerMod appears in settings. If not:
 
 Remove the mod on PDXMods. Restart the game. Reinstall the mod on PDXMods. Restart the game.
 

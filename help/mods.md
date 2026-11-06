@@ -18,7 +18,7 @@ sides: the multiplayer mod and the other mod have to cooperate to expose what ch
 ## Other mods are blocked
 
 Hosting and joining are blocked while any other mod is active, and a host rejects players
-running a different CS2 Multiplayer Mod build. Nothing in the synchronization layer accounts
+running a different ZulutimeMultiplayerMod build. Nothing in the synchronization layer accounts
 for a third party changing prefabs, tools or the simulation, so one extra mod on one machine
 is enough to desync the session or crash the other player.
 
@@ -34,7 +34,7 @@ are not enabled for this run and are ignored.
 
 To clear the block:
 
-1. Disable every mod except CS2 Multiplayer Mod in your active playset. A playset that
+1. Disable every mod except ZulutimeMultiplayerMod in your active playset. A playset that
    contains only this mod is the safest setup.
 2. Go back to the game and wait a few seconds for the banner to clear.
 3. If the banner says the mods are still loaded, restart the game.
@@ -43,13 +43,13 @@ To clear the block:
 
 ## Turning the check off
 
-Options ▸ CS2 Multiplayer Mod ▸ General ▸ Ignore Mod Compatibility Checks (Own Risk).
+Options ▸ ZulutimeMultiplayerMod ▸ General ▸ Ignore Mod Compatibility Checks (Own Risk).
 Change it while offline, before hosting or joining.
 
 ![](assets/img/ui-options-general.png)
 
 With it on, other active mods no longer block hosting or joining on your machine, and a
-host also admits players on a different CS2 Multiplayer Mod build as long as the network
+host also admits players on a different ZulutimeMultiplayerMod build as long as the network
 protocol matches.
 
 It does not bypass:

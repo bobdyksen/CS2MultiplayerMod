@@ -6,7 +6,7 @@ description: "Turn DLC off on Steam and on Xbox, Microsoft Store or Game Pass so
 # Disabling DLC
 Learn how to disable DLC on Steam and on XBox/Microsoft Store/Gamepass.
 
-For CS2MultiplayerMod, you only need to disable DLC that the other players do not have. All players should have the same DLCs activated (or no DLC activated).
+For ZulutimeMultiplayerMod, you only need to disable DLC that the other players do not have. All players should have the same DLCs activated (or no DLC activated).
 
 ## Steam
 
