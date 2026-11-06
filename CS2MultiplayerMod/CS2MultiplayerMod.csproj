@@ -139,8 +139,16 @@
         <PropertyGroup>
             <SteamBackendDir>$(MSBuildProjectDirectory)\..\CS2MultiplayerMod.Steam</SteamBackendDir>
         </PropertyGroup>
+        <!--Restore, then build as a second evaluation. Restore;Build in one
+        invocation, and a second call that carries the same global properties,
+        both compile the graph from before the assets file exists, so the
+        reference-assembly package is never imported and net48 still fails with
+        MSB3644. SteamBackendRestored is unused; it only changes the evaluation
+        key so the build sees the restored package.-->
         <MSBuild Projects="$(SteamBackendDir)\CS2MultiplayerMod.Steam.csproj"
-                 Targets="Build" Properties="Configuration=$(Configuration)"/>
+                 Targets="Restore" Properties="Configuration=$(Configuration)"/>
+        <MSBuild Projects="$(SteamBackendDir)\CS2MultiplayerMod.Steam.csproj"
+                 Targets="Build" Properties="Configuration=$(Configuration);SteamBackendRestored=true"/>
         <ItemGroup>
             <SteamBackendFiles Include="$(SteamBackendDir)\bin\$(Configuration)\net48\CS2MultiplayerMod.Steam.dll"/>
             <SteamBackendFiles Include="$(SteamBackendDir)\bin\$(Configuration)\net48\CS2MultiplayerMod.Steam.pdb"/>

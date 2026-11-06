@@ -33,6 +33,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!--The 4.8 reference assemblies (mscorlib and the rest). Without this, a machine
+        that does not have the .NET Framework 4.8 Developer Pack fails the build with
+        MSB3644 before it ever looks for the game assemblies.-->
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!--A plain file reference rather than a ProjectReference: the mod's build is
         what drives this project (its post-build target), and a project cycle would
         make that impossible.-->
