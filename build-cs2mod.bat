@@ -9,12 +9,8 @@ echo == Checking tools ==
 where git >nul 2>&1 || (echo Installing Git... & winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements)
 where node >nul 2>&1 || (echo Installing Node.js... & winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements)
 where dotnet >nul 2>&1 || (echo Installing .NET SDK... & winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements)
-if not exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" (
-  echo Installing .NET Framework 4.8 Developer Pack...
-  winget install --id Microsoft.DotNet.Framework.DeveloperPack_4 -e --accept-package-agreements --accept-source-agreements
-)
 dotnet --list-runtimes 2>nul | findstr /C:"Microsoft.NETCore.App 6." >nul || (echo Installing .NET 6 runtime... & winget install --id Microsoft.DotNet.Runtime.6 -e --accept-package-agreements --accept-source-agreements)
-where git >nul 2>&1 && where node >nul 2>&1 && where dotnet >nul 2>&1 && if exist "%ProgramFiles(x86)%\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" (set TOOLS_OK=1)
+where git >nul 2>&1 && where node >nul 2>&1 && where dotnet >nul 2>&1 && set TOOLS_OK=1
 if not defined TOOLS_OK (
   echo.
   echo Tools were just installed. Close this window and run the script again.
