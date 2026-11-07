@@ -2,22 +2,23 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using CS2MultiplayerMod.Core.Diagnostics;
+using CS2MultiplayerMod.Core.Protocol;
 using CS2MultiplayerMod.Core.Protocol.Messages;
 using CS2MultiplayerMod.Core.Session;
 using CS2MultiplayerMod.Game.Diagnostics;
+using CS2MultiplayerMod.Localization;
 
 namespace CS2MultiplayerMod.Game
 {
     /// <summary>
-    /// Where a joining client stands in the world-handover flow. Gameplay sync is
-    /// gated on <see cref="MultiplayerService.GameplaySyncReady"/>: no command is
-    /// captured or applied until the host's world has actually finished loading, so
-    /// remote edits never land in a half-replaced city.
+    /// A joining client's world-handover stage. No command is captured or applied until the host's
+    /// world has loaded (<see cref="MultiplayerService.GameplaySyncReady"/>).
     /// </summary>
     public enum ClientWorldPhase
     {
         None,
         Connecting,
+        Reconnecting,
         WaitingForMap,
         LoadingMap,
         WaitingForResume,
@@ -25,12 +26,9 @@ namespace CS2MultiplayerMod.Game
     }
 
     /// <summary>
-    /// Process-wide bridge between the mod lifecycle / UI and the portable
-    /// <see cref="MultiplayerSession"/>. Created once in <see cref="Mod.OnLoad"/> and
-    /// pumped every simulation tick by <see cref="MultiplayerSystem"/>.
-    /// It owns the monotonic clock the session needs and translates the settings screen's
-    /// strings into a <see cref="MultiplayerConfig"/>. It also registers the security
-    /// allow-lists: which blob channels a client accepts and which command ids peers may send.
+    /// Bridge between the mod lifecycle/UI and the portable <see cref="MultiplayerSession"/>: created in
+    /// <see cref="Mod.OnLoad"/>, pumped by <see cref="MultiplayerSystem"/>. Owns the session clock, maps
+    /// settings to a <see cref="MultiplayerConfig"/>, and registers the blob and command allow-lists.
     /// </summary>
     public sealed partial class MultiplayerService
     {
@@ -56,9 +54,8 @@ namespace CS2MultiplayerMod.Game
         private bool _sawLoading;
         private string _lastFault;
 
-        // The service observer runs before the individual realization observers. Keeping
-        // this breadcrumb here means it is flushed before a received command can enter a
-        // crash-prone game operation, including failures in native code with no stack trace.
+        // Runs before the realization observers, so the breadcrumb is flushed before a received command
+        // reaches a crash-prone native operation.
         private long _appliedCommandTotal;
         private ushort _lastAppliedCommandId;
         private int _lastAppliedCommandOrigin;
@@ -74,9 +71,7 @@ namespace CS2MultiplayerMod.Game
             _session = new MultiplayerSession(log);
             _session.AddObserver(new ServiceObserver(this));
 
-            // Security allow-lists (secure by default in the core): the one blob channel
-            // a client may receive, and the complete set of gameplay command ids. A peer
-            // sending anything outside these is disconnected.
+            // Allow-lists: anything outside them disconnects the peer.
             _session.AllowBlobChannel(MapChannel, MaxSaveBlobBytes);
             GameplayCommandRegistry.Register(_session);
         }
@@ -92,20 +87,15 @@ namespace CS2MultiplayerMod.Game
         /// <summary>The joining client's place in the world-handover flow.</summary>
         public ClientWorldPhase WorldPhase => _phase;
 
-        /// <summary>
-        /// Client-local generation of successfully installed authoritative worlds. It advances
-        /// only when a Resume is accepted after WaitingForResume; aborting back to the old world
-        /// deliberately leaves it unchanged.
-        /// </summary>
+        /// <summary>Installed host worlds; advances only on an accepted Resume, never on an abort.</summary>
         public long WorldInstallGeneration => _worldInstallGeneration;
 
         /// <summary>Master switch from the settings screen.</summary>
         public static bool ModEnabled => Mod.Setting == null || Mod.Setting.EnableMod;
 
         /// <summary>
-        /// The one gate every sync system checks before capturing or applying gameplay:
-        /// mod enabled, session connected, and - on a client - the host's world fully
-        /// loaded. The host is always "in session" with its own world.
+        /// The gate for capturing or applying gameplay: mod enabled, connected, and on a client the host's
+        /// world loaded.
         /// </summary>
         public bool GameplaySyncReady =>
             ModEnabled &&
@@ -114,17 +104,14 @@ namespace CS2MultiplayerMod.Game
             (_session.Role == SessionRole.Host || _phase == ClientWorldPhase.InSession);
 
         /// <summary>
-        /// Whether the host chose to replicate the simulation's own decisions this session -
-        /// zone-grown buildings, their occupants and tenants, and the demand behind them. The
-        /// host answers from its setting; a client answers with what the host announced when it
-        /// was accepted. Player edits do not consult this at all.
+        /// Whether the host replicates simulation decisions (growables, occupants, tenants, demand). Clients
+        /// answer with what the host announced; player edits never consult this.
         /// </summary>
         public bool SimulationSyncEnabled => _session.SimulationSyncEnabled;
 
         /// <summary>
-        /// <see cref="GameplaySyncReady"/> for the simulation half of the mod. Off, those systems
-        /// take the same branch a closed session takes: they drain what is queued and hand the
-        /// native simulation back the systems they were holding, so each city grows its own.
+        /// <see cref="GameplaySyncReady"/> for the simulation systems. Off, they behave as in a closed
+        /// session: drain the queue and release their native holds.
         /// </summary>
         public bool SimulationSyncReady => GameplaySyncReady && _session.SimulationSyncEnabled;
 
@@ -152,9 +139,7 @@ namespace CS2MultiplayerMod.Game
             _lastAppliedCommandBytes = command.Body != null ? command.Body.Length : 0;
             _lastAppliedCommandMs = now;
 
-            // Continuous brushes and road drags can produce many commands per second.
-            // Log the first, every operation-type change, and one sample per second so
-            // the file remains small without losing the operation active at a CTD.
+            // Log the first command, every type change and one sample per second.
             if (_lastCommandLoggedTotal != 0 &&
                 command.CommandId == _lastLoggedCommandId &&
                 now - _lastCommandLogMs < 1000)
@@ -182,14 +167,9 @@ namespace CS2MultiplayerMod.Game
             _lastCommandLoggedTotal = 0;
         }
 
-        private static string CommandName(ushort id)
-        {
-            return GameplayCommandRegistry.Name(id);
-        }
+        private static string CommandName(ushort id) => GameplayCommandRegistry.Name(id);
 
-        // All Status*/UiStatus* texts are re-read every UI frame by the options screen
-        // and the cs2mp bindings, so resolving them through L10n here makes them follow
-        // the game language live (including a language switch mid-session).
+        // Status texts are re-read every UI frame, so resolving through L10n follows a live language switch.
         // ---- Autosave guard (client only) -------------------------------------
         private bool _autosaveSuppressed;
         private bool _autosaveWasEnabled;
@@ -198,17 +178,56 @@ namespace CS2MultiplayerMod.Game
         /// <summary>/sync: ask the host for a fresh world stream (host: refresh everyone).</summary>
         public void RequestWorldSync() => _session.RequestWorldSync();
 
+        private string _lastDiagnosticsFile;
+        private bool _lastDiagnosticsFailed;
+
+        /// <summary>What Save Diagnostics last did this run, for the options screen.</summary>
+        public string DiagnosticsStatusText =>
+            _lastDiagnosticsFailed ? L10n.T(L10n.Key.DiagnosticsFailed)
+            : _lastDiagnosticsFile == null ? L10n.T(L10n.Key.DiagnosticsNone)
+            : L10n.F(L10n.Key.DiagnosticsSaved, _lastDiagnosticsFile);
+
         /// <summary>
-        /// One unresolved remote edit (a missed native capture, an owned sub-element that would not
-        /// resolve) must never loop the whole tens-of-MB world through recovery. A single automatic
-        /// recovery repairs a genuine divergence; a second inside this window is a storm — it freezes
-        /// both players for the length of a save+stream and does not fix the offending edit, which
-        /// simply re-triggers after every reload (the exact 52 MB epoch-loop seen in the field). EVERY
-        /// automatic caller funnels through here so none can bypass the cap; only manual /sync and the
-        /// settings button call <see cref="RequestWorldSync"/> directly.
+        /// Save Diagnostics and /diag: this machine's session state plus the flight log in one file. Works
+        /// offline too, so a join that failed can still be reported. Returns the file name, or null.
+        /// </summary>
+        public string ExportDiagnostics(string reason)
+        {
+            var snapshot = new System.Text.StringBuilder();
+            snapshot.Append("mod=").Append(Mod.StampedVersion)
+                .Append(" protocol=").Append(ProtocolConstants.ProtocolVersion)
+                .Append(" game=").Append(GameVersionCheck.CurrentVersion).AppendLine();
+            snapshot.Append("role=").Append(_session.Role).Append(" status=").Append(_session.Status)
+                .Append(" phase=").Append(_phase).Append(" simulationSync=").Append(SimulationSyncEnabled)
+                .AppendLine();
+            snapshot.Append("lastFault=").Append(_lastFault ?? "none").AppendLine();
+            snapshot.Append("unsupportedMods=").Append(ModsCheck.Summary()).AppendLine();
+            snapshot.Append("modSet=[").Append(string.Join(", ", ModsCheck.Manifest)).Append(']').AppendLine();
+            foreach (Peer peer in _session.Peers)
+                snapshot.Append("peer #").Append(peer.PlayerId).Append(" '").Append(peer.Name)
+                    .Append("' handshaked=").Append(peer.Handshaked)
+                    .Append(" latencyMs=").Append(peer.LatencyMs)
+                    .Append(" mod=").Append(peer.ModVersion ?? "?")
+                    .Append(" build=").Append(peer.BuildId ?? "?").AppendLine();
+            snapshot.Append("process ").Append(FlightRecorder.ProcessSnapshot());
+
+            string file = FlightRecorder.ExportBundle(reason, snapshot.ToString());
+            _lastDiagnosticsFailed = file == null;
+            if (file != null) _lastDiagnosticsFile = file;
+            if (file != null)
+                _log.Event(LogTopic.Session, "Diagnostics saved to Logs/" + file + " (" + reason + ").");
+            else
+                _log.Warn(LogTopic.Session, "Diagnostics could not be saved (" + reason + ").");
+            return file;
+        }
+
+        /// <summary>
+        /// Rate-limit automatic recovery without losing reports from callers that already dropped their
+        /// work. Only manual /sync and the settings button call <see cref="RequestWorldSync"/> directly.
         /// </summary>
         private const long AutoRecoveryCooldownMs = 90000;
-        private long _lastAutoRecoveryMs = long.MinValue;
+        private readonly Diagnostics.AutomaticRecoveryQueue _automaticRecovery =
+            new Diagnostics.AutomaticRecoveryQueue(AutoRecoveryCooldownMs);
 
         /// <summary>True while a world reload is already under way, in either role.</summary>
         private bool WorldRecoveryInFlight =>
@@ -217,23 +236,16 @@ namespace CS2MultiplayerMod.Game
             _phase == ClientWorldPhase.LoadingMap ||
             _phase == ClientWorldPhase.WaitingForResume;
 
-        /// <summary>A settled report waiting for the service tick to act on it. Main thread only.</summary>
-        private Diagnostics.ResyncReport _settledReport;
-
         /// <summary>
-        /// Set when this client must re-ask the host for a world it is otherwise never going to
-        /// receive. It deliberately bypasses the resync arbiter and the in-flight guard: this is
-        /// not a claim that the two cities diverged, it is a client saying the handover broke and
-        /// it is still waiting. See the Resume-before-load case in WorldSync.
+        /// The handover broke and no world is coming: re-ask the host, bypassing the arbiter and the
+        /// in-flight guard. Not a divergence claim.
         /// </summary>
         private bool _mapReRequestPending;
 
         internal void RequestMapAgainNextTick() => _mapReRequestPending = true;
 
         /// <summary>
-        /// Ask again for a world whose handover broke, once the session has actually left the epoch
-        /// that broke. Waiting for that is why this is a pumped flag rather than a direct call: the
-        /// session coalesces any request made while it is still inside the epoch.
+        /// Pumped rather than direct: a request made inside the broken epoch is coalesced away.
         /// </summary>
         private void PumpMapReRequest()
         {
@@ -252,119 +264,98 @@ namespace CS2MultiplayerMod.Game
         }
 
         /// <summary>
-        /// The synchronous resync gate wired into <see cref="Sync.Infrastructure.SyncInbox.Arbitrate"/>.
-        /// A caller that can still hold its work puts its evidence here and acts on the verdict:
-        /// only <see cref="Diagnostics.ResyncVerdict.Settled"/> reloads the world.
-        ///
-        /// The VERDICT is synchronous - the caller is mid-frame and has to know right now whether to
-        /// keep its work. The reload is not: it is handed to the service tick, where world recovery
-        /// has always been started from, rather than being kicked off from inside a ToolUpdate.
+        /// The resync gate behind <see cref="Sync.Infrastructure.SyncInbox.Arbitrate"/>. The verdict is
+        /// synchronous; only <see cref="Diagnostics.ResyncVerdict.Settled"/> reloads, and the reload starts
+        /// from the service tick, not inside ToolUpdate.
         /// </summary>
         public Diagnostics.ResyncVerdict SettleResyncReport(Diagnostics.ResyncReport report)
         {
+            _automaticRecovery.ObserveWorld(_worldInstallGeneration);
             if (report == null) return Diagnostics.ResyncVerdict.Settled;
             if (_session == null || _session.Status != SessionStatus.Connected)
                 return Diagnostics.ResyncVerdict.AlreadyRecovering;
 
             Diagnostics.ResyncVerdict verdict =
                 Diagnostics.ResyncArbiter.Submit(report, NowMs, WorldRecoveryInFlight);
-            // First settled report wins; a second one this frame is a consequence of the same
-            // divergence and the one reload answers both.
-            if (verdict == Diagnostics.ResyncVerdict.Settled && _settledReport == null)
-                _settledReport = report;
+            if (verdict == Diagnostics.ResyncVerdict.Settled)
+                QueueAutomaticWorldRecovery(report);
             return verdict;
         }
 
-        public void RequestAutomaticWorldRecovery(string reason)
-        {
+        public void RequestAutomaticWorldRecovery(string reason) =>
             RequestAutomaticWorldRecovery(Diagnostics.ResyncReport.FromReason(reason));
-        }
 
-        /// <summary>
-        /// Weigh a queued report and, if it settles, reload the world. Requests that arrive here
-        /// have already let go of their work, so a held verdict simply means the world is left
-        /// alone and the arbiter keeps watching for the fault to recur.
-        /// </summary>
+        /// <summary>Weighs a report from a caller that already dropped its work; queues recovery if settled.</summary>
         public void RequestAutomaticWorldRecovery(Diagnostics.ResyncReport report)
         {
+            _automaticRecovery.ObserveWorld(_worldInstallGeneration);
             if (report == null || _session == null || _session.Status != SessionStatus.Connected) return;
             if (Diagnostics.ResyncArbiter.Submit(report, NowMs, WorldRecoveryInFlight) !=
                 Diagnostics.ResyncVerdict.Settled) return;
-            RunAutomaticWorldRecovery(report);
+            QueueAutomaticWorldRecovery(report);
         }
 
         /// <summary>
-        /// Reload the world for reports whose hold elapsed with nothing withdrawing them. Held is
-        /// never "dismissed": a subsystem that can retry withdraws its report when it succeeds, and
-        /// one that dropped its work simply lets the hold run out, which is what lands here.
+        /// Reloads for reports whose hold ran out: a retrying subsystem withdraws its report on success.
         /// </summary>
         private void PumpMaturedResyncReports()
         {
-            if (_session == null || _session.Status != SessionStatus.Connected) return;
-            // A reload already running supersedes anything held: leave the evidence alone rather
-            // than announcing a verdict on it that nothing is going to act on.
-            if (WorldRecoveryInFlight) return;
-
-            // Verdicts settled inside a frame (see SettleResyncReport) are acted on here.
-            Diagnostics.ResyncReport settled = _settledReport;
-            _settledReport = null;
-            if (settled != null) RunAutomaticWorldRecovery(settled);
+            _automaticRecovery.ObserveWorld(_worldInstallGeneration);
+            if (_session == null || _session.Status != SessionStatus.Connected)
+            {
+                ResetAutomaticRecovery();
+                return;
+            }
+            // Keep deferred recovery through a barrier-only pause or an aborted transfer. The world
+            // generation, not merely entering a barrier, tells us an installed snapshot superseded it.
+            if (WorldRecoveryInFlight || _session.WorldSyncSuspended) return;
 
             System.Collections.Generic.List<Diagnostics.ResyncReport> matured =
                 Diagnostics.ResyncArbiter.TakeMatured(NowMs);
-            if (matured == null || matured.Count == 0) return;
             // One reload settles every one of them; the rest are folded into it.
-            RunAutomaticWorldRecovery(matured[0]);
+            if (matured != null && matured.Count > 0) QueueAutomaticWorldRecovery(matured[0]);
+            PumpAutomaticWorldRecovery();
         }
 
-        private void RunAutomaticWorldRecovery(Diagnostics.ResyncReport report)
+        private void QueueAutomaticWorldRecovery(Diagnostics.ResyncReport report)
         {
-            long now = NowMs;
-            // Guard the sentinel before subtracting it. `now - long.MinValue` wraps negative in
-            // unchecked arithmetic, which otherwise makes the first automatic recovery look as if
-            // it were inside the cooldown forever.
-            bool coolingDown = _lastAutoRecoveryMs != long.MinValue &&
-                               now - _lastAutoRecoveryMs < AutoRecoveryCooldownMs;
-            if (coolingDown)
+            if (!_automaticRecovery.Enqueue(report, _worldInstallGeneration)) return;
+            if (_automaticRecovery.IsCoolingDown(NowMs))
             {
                 Diagnostics.SyncLog.Warn(LogTopic.Session,
-                    "World sync: skipped a second automatic reload within " +
-                    (AutoRecoveryCooldownMs / 1000) + " s (" + report.Summary() +
-                    "). The edit behind it is left un-synced; use /sync if the city looks out of step.");
-                return;
+                    "World sync: deferred automatic recovery until the current transfer and " +
+                    (AutoRecoveryCooldownMs / 1000) + " s cooldown finish (" + report.Summary() + ").");
             }
-            _lastAutoRecoveryMs = now;
+        }
+
+        private void PumpAutomaticWorldRecovery()
+        {
+            if (!_automaticRecovery.TryTake(NowMs,
+                _session != null && _session.Status == SessionStatus.Connected,
+                WorldRecoveryInFlight || (_session != null && _session.WorldSyncSuspended),
+                _worldInstallGeneration, out Diagnostics.ResyncReport report)) return;
+
             Diagnostics.SyncLog.Event(LogTopic.Session,
                 "World sync: reloading this city from the host now (" + report.Summary() + ").");
-            // Include the subject in the existing bounded reason field: host-only logs must
-            // identify which inbox/operation failed on the client.
+            // The subject tells host-only logs which client inbox failed.
             _session.RequestAutomaticWorldSync(report.Reason + " [" + report.Subject + "]");
         }
 
+        private void ResetAutomaticRecovery() => _automaticRecovery.Reset(_worldInstallGeneration);
+
         // ---- Chat log (in-game hub panel) --------------------------------------
 
-        /// <summary>Bounded - old lines fall off so an all-night session cannot grow the UI payload.</summary>
-        private const int MaxChatEntries = 120;
-
         private readonly object _chatLock = new object();
-        private readonly List<ChatLogEntry> _chatLog = new List<ChatLogEntry>();
-        private int _nextChatId = 1;
-        private string _chatLogJson = "[]";
+        private readonly SessionFeed _sessionFeed = new SessionFeed();
         private string _playerListJson = "[]";
 
         /// <summary>
-        /// The chat/event feed as a JSON array for the hub panel binding:
-        /// <c>[{"id":1,"sender":"Name"|null,"text":"...","time":"HH:mm"}, ...]</c>.
-        /// Cached and rebuilt only on append, so the per-frame UI binding compares
-        /// the same string instance instead of re-serializing the whole log.
+        /// Typed player messages and session activity for the hub. Rebuilt only on change;
+        /// activity has its own retention budget and never counts as unread player chat.
         /// </summary>
-        public string ChatLogJson { get { lock (_chatLock) return _chatLogJson; } }
+        public string ChatLogJson => _sessionFeed.Json;
 
-        /// <summary>
-        /// Host-side participant list used by the in-game panel. It is rebuilt only
-        /// when session membership changes, avoiding a fresh JSON allocation every UI
-        /// frame. The local host is included and is never kickable.
-        /// </summary>
+        /// <summary>Host participant list, rebuilt on membership change; the local host is never kickable.</summary>
         public string PlayerListJson { get { lock (_chatLock) return _playerListJson; } }
 
         /// <summary>Remove one authenticated client selected in the host player list.</summary>
@@ -401,45 +392,28 @@ namespace CS2MultiplayerMod.Game
                 var sb = new System.Text.StringBuilder((peers.Count + 1) * 56 + 2);
                 sb.Append("[{\"id\":").Append(_session.LocalPlayerId).Append(",\"name\":");
                 AppendJsonString(sb, _session.LocalPlayerName);
-                sb.Append(",\"isHost\":true}]");
+                sb.Append(",\"isHost\":true,\"color\":\"")
+                    .Append(Sync.Players.RemotePlayerMarkerSystem.PlayerColorCss(_session.LocalPlayerId))
+                    .Append("\"}]");
 
                 if (peers.Count > 0)
                 {
-                    // Replace the closing bracket while appending keeps this a single,
-                    // small allocation and reuses the chat JSON escaping rules.
+                    // Replace the closing bracket: one small allocation.
                     sb.Length--;
                     for (int i = 0; i < peers.Count; i++)
                     {
                         Peer peer = peers[i];
                         sb.Append(",{\"id\":").Append(peer.PlayerId).Append(",\"name\":");
                         AppendJsonString(sb, peer.Name);
-                        sb.Append(",\"isHost\":false}");
+                        sb.Append(",\"isHost\":false,\"color\":\"")
+                            .Append(Sync.Players.RemotePlayerMarkerSystem.PlayerColorCss(peer.PlayerId))
+                            .Append("\"}");
                     }
                     sb.Append(']');
                 }
                 _playerListJson = sb.ToString();
             }
         }
-
-
-
-
-
-        private struct ChatLogEntry
-        {
-            public int Id;
-            public string Sender;
-            public string Text;
-            public string Time;
-        }
-
-
-
-
-
-
-
-
 
         /// <summary>Mirrors session events into the mod log and records remote player positions.</summary>
         private sealed class ServiceObserver : SessionObserver
@@ -450,10 +424,9 @@ namespace CS2MultiplayerMod.Game
 
             public override void OnStatusChanged(SessionStatus status, string detail)
             {
+                if (status != SessionStatus.Connected) _service.ResetAutomaticRecovery();
                 _log.Detail(LogTopic.Session, status + ": " + detail);
-                // Players commonly attach the flight log to a public support post. Keep
-                // the target IP/hostname in the private main log, but retain the port and
-                // transport mode needed to diagnose a connection-stage failure here.
+                // The flight log is shared publicly: keep the host in the main log, only port and transport here.
                 string flightDetail = status == SessionStatus.Connecting
                     ? "target=redacted port=" + _service._session.Port +
                       " encryption=" + _service._session.EncryptionActive
@@ -463,16 +436,26 @@ namespace CS2MultiplayerMod.Game
                     (string.IsNullOrEmpty(flightDetail) ? "" : " detail=" + flightDetail));
                 if (status == SessionStatus.Connected &&
                     _service._session.Role == SessionRole.Client &&
-                    _service._phase == ClientWorldPhase.Connecting)
+                    (_service._phase == ClientWorldPhase.Connecting || _service._phase == ClientWorldPhase.Reconnecting))
                 {
                     // Authenticated; the host streams its world to every fresh join.
                     _service.SetPhase(ClientWorldPhase.WaitingForMap);
                 }
+                else if (status == SessionStatus.Reconnecting)
+                {
+                    _service._lastFault = null;
+                    _service.ResetWorldSyncState(restoreSpeed: false);
+                    _service._worldSyncBarrierActive = true;
+                    _service._worldSyncInputLocked = true;
+                    _service.SetPhase(ClientWorldPhase.Reconnecting);
+                    _service._remotePlayers.Clear();
+                    Sync.Infrastructure.SyncInbox.DrainAll();
+                    Diagnostics.ResyncArbiter.Reset();
+                    _service.MaintainWorldSyncBarrier();
+                }
                 else if (status == SessionStatus.Offline || status == SessionStatus.Faulted)
                 {
-                    // Core teardown deliberately knows nothing about game worlds. If this
-                    // client had already installed the host's temporary city, hand the game
-                    // layer a deferred exit request before clearing the client phase.
+                    // Core knows nothing of worlds: request the deferred exit before clearing the client phase.
                     if (_service._clientHostWorldActive)
                     {
                         string reason = !string.IsNullOrWhiteSpace(detail) && detail != "Stopped"
@@ -485,44 +468,28 @@ namespace CS2MultiplayerMod.Game
                     _service.ResetWorldSyncState(restoreSpeed: true);
                     _service.SetPhase(ClientWorldPhase.None);
                     _service._remotePlayers.Clear();
+                    _service._mapPings.Clear();
+                    _service.StopFollowingPlayer();
                 }
 
-                // Lifecycle lines in the hub feed. Like the core's "X joined." notices
-                // these stay English: they are shared diagnostics, not translated UI.
-                // Stop() fires Offline unconditionally (also after faults and no-op
-                // disconnects), so "closed" is only posted when a session actually ran.
+                // The status view owns connection guidance and transfer progress. The activity
+                // history gets one concise lifecycle event, rather than paragraphs in player chat.
                 if (status == SessionStatus.Connected && _service._session.Role == SessionRole.Host)
                 {
-                    _service.AppendChatEntry(null, "Session started - players can join now.");
-                    if (!_service._session.UsesRelay)
-                    {
-                        if (_service._session.PublicExposure)
-                            _service.AppendChatEntry(null, "Friends from another network can only join if you forward TCP port " +
-                                _service._session.Port + " to this PC on your router and allow it through your firewall.");
-                        else
-                            _service.AppendChatEntry(null, "LAN-only is enabled - only players on your local network can join. " +
-                                "If they cannot connect, allow TCP port " + _service._session.Port + " through your firewall.");
-                    }
+                    _service.AppendSessionActivity(L10n.T("CS2MP.Activity.Hosting"));
                 }
                 else if (status == SessionStatus.Connected && _service._session.Role == SessionRole.Client)
                 {
-                    // Joining replaces the client's world with the host's copy. Without this notice
-                    // the swap reads as "my buildings disappeared" when both play the same city:
-                    // anything built outside the session is not in the host's world.
-                    _service.AppendChatEntry(null, "Connected - downloading the host's city. It will replace the world " +
-                        "you have open in a moment, so anything you built outside this shared session (for example just " +
-                        "before joining) is not part of it. Your own saves are untouched.");
+                    _service.AppendSessionActivity(L10n.T("CS2MP.Activity.Connected"));
                 }
                 else if (status == SessionStatus.Offline && _lastStatus == SessionStatus.Connected)
                 {
-                    // A live session ended cleanly (we left, or the host closed it — both are normal).
-                    // Clear any stale fault text from an earlier failed attempt so the status reads as a
-                    // plain disconnect, not "Connection failed".
+                    // A clean end: clear stale fault text from an earlier failed attempt.
                     _service._lastFault = null;
-                    _service.AppendChatEntry(null, "Session closed.");
+                    _service.AppendSessionActivity(L10n.T("CS2MP.Activity.Closed"));
                 }
                 else if (status == SessionStatus.Faulted)
-                    _service.AppendChatEntry(null, string.IsNullOrEmpty(detail) ? "Connection failed." : detail);
+                    _service.AppendSessionActivity(FriendlyFaultSummary(detail), error: true);
                 _service.RefreshPlayerListJson();
                 _lastStatus = status;
             }
@@ -538,29 +505,28 @@ namespace CS2MultiplayerMod.Game
             public override void OnPeerLeft(Peer peer, string reason)
             {
                 _log.Event(LogTopic.Session, "Peer left: " + peer + " (" + reason + ")");
-                RemotePlayer removed;
-                _service._remotePlayers.TryRemove(peer.PlayerId, out removed);
+                _service._remotePlayers.TryRemove(peer.PlayerId, out RemotePlayer removed);
                 _service.RefreshPlayerListJson();
             }
             public override void OnChatReceived(string sender, string text)
             {
                 _log.Detail(LogTopic.Session, (sender ?? "system") + ": " + text);
-                _service.AppendChatEntry(sender, text);
+                if (sender == null)
+                    _service.AppendSessionActivity(text);
+                else
+                    _service.AppendPlayerChat(sender, text);
             }
-            public override void OnCommandReceived(SimulationCommandMessage command)
-            {
+            public override void OnCommandReceived(SimulationCommandMessage command) =>
                 _service.RecordAppliedCommand(command);
-            }
+            public override void OnMapPingReceived(MapPingMessage ping) => _service.RecordMapPing(ping);
             public override void OnPlayerStateReceived(PlayerStateMessage state) => _service.RecordRemotePlayer(state);
             public override void OnBlobReceived(string channel, long transferId, byte[] data)
             {
                 if (channel == MapChannel) _service.LoadReceivedMap(transferId, data);
             }
             public override void OnWorldSyncControl(WorldSyncStage stage, long epoch,
-                float resumeSpeed, Core.Networking.ConnectionId connection)
-            {
-                _service.HandleWorldSyncControl(stage, epoch, resumeSpeed);
-            }
+                float resumeSpeed, Core.Networking.ConnectionId connection) =>
+                    _service.HandleWorldSyncControl(stage, epoch, resumeSpeed);
             public override void OnError(string message)
             {
                 _service._lastFault = message;
@@ -582,6 +548,9 @@ namespace CS2MultiplayerMod.Game
         public float EyeY;
         public float EyeZ;
         public float Yaw;
+        public float Pitch;
+        public float Zoom;
+        public string Name;
         public Core.Protocol.Messages.PlayerHoverShape[] Hover =
             System.Array.Empty<Core.Protocol.Messages.PlayerHoverShape>();
         public long LastUpdateMs;

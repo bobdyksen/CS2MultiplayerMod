@@ -1,62 +1,44 @@
 using System.Collections.Generic;
-using Colossal.Mathematics;
 using Game.Common;
 using Game.Net;
 using Game.Prefabs;
 using Game.Tools;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Mathematics;
 using CS2MultiplayerMod.Core.Diagnostics;
 using CS2MultiplayerMod.Game.Diagnostics;
 using CS2MultiplayerMod.Game.Sync.Commands;
 
 namespace CS2MultiplayerMod.Game.Sync.Systems.Net
 {
-    // Capturing what this player's own net tool did, as intent the other side can rebuild from.
-    // The game emits definitions, not a description of the gesture, so the gesture is read back
-    // out of them - including the hidden sub-networks it generated, which must not travel.
-    //
-    // Turning one definition into a command, and an endpoint into something a peer can resolve,
-    // is in IntentCommand.cs.
+    // Reads the local net tool's gesture back out of its definitions, skipping the hidden
+    // sub-networks it generates.
     public partial class NetSyncSystem
     {
         private const long CommittedSideEffectWindowMs = 5000;
 
         /// <summary>
-        /// Refresh the active net tool's cached course definitions. An empty steady-state frame keeps
-        /// the prior cache because a motionless preview does not necessarily regenerate definitions.
-        /// The net tool also uses Clear while replacing a moving cursor preview, so Clear by itself
-        /// is not cancellation and must not erase the last complete native operation. Switching away
-        /// from the net tool still invalidates it.
+        /// Refreshes the cached course definitions from the tool's fresh output, before course splitting
+        /// rewrites it in place. An empty frame or Clear keeps the cache (a still or moving preview does not
+        /// always regenerate); switching tools invalidates it.
         /// </summary>
-        public void ObserveLocalNetDefinitions(NativeArray<Entity> definitions)
+        public void ObserveLocalNetDefinitions(NativeArray<Entity> definitions) =>
+            ObserveLocalNetDefinitions(definitions, split: false);
+
+        private void ObserveLocalNetDefinitions(NativeArray<Entity> definitions, bool split)
         {
             global::Game.Tools.ToolBaseSystem active = _toolSystem != null ? _toolSystem.activeTool : null;
             if (!(active is global::Game.Tools.NetToolSystem))
             {
-                _cachedLocalCourses.Clear();
-                _cachedLocalMixedOperation.Clear();
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
+                ClearLocalNetCapture();
                 return;
             }
 
-            // CaptureLocalNetApply can run before DefinitionGate observes this frame's buffered
-            // definitions. Once that Apply has been published, those definitions are the same
-            // gesture and must not seed a stale cache for the next click.
-            if (_nativeApplyCapturedFrame == _realizeFrame) return;
-
-            // A network prefab may create a top-level object as the owner of its course graph.
-            // Owner-linked courses cannot be replayed as independent network placements; the
-            // complete heterogeneous batch is captured atomically by BuildSyncSystem.
+            // An owner-linked graph is captured atomically by BuildSyncSystem.
             if (global::CS2MultiplayerMod.Game.Sync.Systems.NativeObjectGraph
                 .HasNewTopLevelObjectRoot(EntityManager, definitions))
             {
-                _cachedLocalCourses.Clear();
-                _cachedLocalMixedOperation.Clear();
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
+                ClearLocalNetCapture();
                 return;
             }
 
@@ -65,10 +47,8 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
 
             var next = new List<NetPlacementCommand>();
             var mixed = new List<LocalNetToolOperationItem>();
-            // A course of this operation that cannot be expressed on the wire voids the whole native
-            // envelope. Publishing the rest would ship a self-consistent but INCOMPLETE operation
-            // (CourseCount counts only what survived) and would then suppress final-edge capture too,
-            // so the missing courses would never reach the other machines at all.
+            var sources = new List<Entity>();
+            // One unrepresentable course voids the envelope; a partial one would also suppress the fallback.
             string rejection = null;
             int rejected = 0;
             int mutations = 0;
@@ -83,11 +63,8 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 CreationDefinition definition = EntityManager.GetComponentData<CreationDefinition>(entity);
                 if (EntityManager.HasComponent<OwnerDefinition>(entity))
                 {
-                    // Editing a road re-cuts the hidden connector of every building beside it, and
-                    // those re-cuts join this operation as owned courses. They are a consequence of
-                    // the edit, not part of it: the receiver rebuilds them from the visible net it
-                    // is about to commit, exactly as it does for an unowned hidden sub-net. Only a
-                    // VISIBLE owned course is real content, and BuildSyncSystem captures that batch.
+                    // Re-cut building connectors are a consequence of the edit and are regenerated by the receiver;
+                    // only a visible owned course is content (BuildSync captures it).
                     if (IsGeneratedHiddenSubNet(definition))
                     {
                         hiddenSubNets++;
@@ -99,19 +76,15 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 }
 
                 NetCourse course = EntityManager.GetComponentData<NetCourse>(entity);
-                // Point-mode network prefabs intentionally commit a zero-length course (for example
-                // a circular junction). Other modes' zero-length definitions are only cursor markers.
-                // The threshold is the realize side's degenerate limit, not a round metre: a drawn
-                // net can legitimately contain a sub-metre course (two crossings close together in
-                // one drag, a short remainder in a grid), and dropping one silently shortens the
-                // operation to a chain with a gap the receiver cannot bridge.
+                // Point-mode prefabs commit zero-length courses; other zero-length ones are cursor markers. The
+                // threshold is the realize side's degenerate limit: sub-metre courses are real.
                 if (course.m_Length < NetPlacementCommand.MinCourseLength && !pointOperation) continue;
+                sources.Add(entity);
 
                 if (!IsPlainLocalNetDefinition(definition))
                 {
-                    string unrepresentable;
                     LocalNetToolOperationItem mutation =
-                        CaptureMixedMutationCommand(definition, course, out unrepresentable);
+                        CaptureMixedMutationCommand(definition, course, out string unrepresentable);
                     if (mutation != null)
                     {
                         mixed.Add(mutation);
@@ -124,9 +97,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                     }
 
                     Entity original = definition.m_Original;
-                    // Retain every usable original while classifying. If any OTHER member later
-                    // voids the envelope, all original-backed geometry must participate in the
-                    // legacy fallback, including members which were individually representable.
+                    // Keep every usable original: if another member voids the envelope, all of them fall back.
                     if (original != Entity.Null && EntityManager.Exists(original) &&
                         EntityManager.HasComponent<Edge>(original) &&
                         EntityManager.HasComponent<Curve>(original) &&
@@ -136,9 +107,8 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 }
                 else
                 {
-                    string unrepresentable;
-                    NetPlacementCommand command = CaptureDefinitionCommand(definition, course,
-                        out unrepresentable);
+                    NetPlacementCommand command = CaptureDefinitionCommand(definition, course, split,
+                        out string unrepresentable);
                     if (command == null)
                     {
                         if (unrepresentable == null) continue;
@@ -165,36 +135,22 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
 
             if (next.Count == 0)
             {
-                // A genuinely empty steady frame keeps the last preview, but a visible graph made
-                // entirely of mutations is a new operation owned by the standalone delete/replace
-                // systems. Clear any older placement preview so its later Apply cannot publish a
-                // stale course envelope in place of this mutation-only gesture.
-                if (mutations > 0 || rejected > 0)
-                {
-                    _cachedLocalCourses.Clear();
-                    _cachedLocalMixedOperation.Clear();
-                    _cachedFallbackOriginalEdges.Clear();
-                    _cachedMixedRejection = null;
-                }
+                // A mutation-only graph belongs to delete/replace; drop the older placement preview.
+                if (mutations > 0 || rejected > 0) ClearLocalNetCapture();
                 return;
             }
 
-            _cachedLocalCourses.Clear();
-            _cachedLocalMixedOperation.Clear();
+            ClearLocalNetCapture();
+            _cachedLocalSources.AddRange(sources);
             if (rejection == null && mutations == 0)
             {
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
                 _cachedLocalCourses.AddRange(next);
                 return;
             }
 
             if (rejection == null)
             {
-                // This is one native Apply, not a delete followed by replacements followed by
-                // placements. Retain the exact definition order and send it through one envelope.
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
+                // One native Apply: keep the definition order in one envelope.
                 _cachedLocalMixedOperation.AddRange(mixed);
                 SyncLog.Trace(LogTopic.Nets, "net atomic mixed capture cached items=" + mixed.Count +
                     " placements=" + next.Count + " mutations=" + mutations +
@@ -202,10 +158,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 return;
             }
 
-            // Never resurrect the fragmented delete/replace/final-edge path. It is exactly the path
-            // that can remove an original before its sibling replacement resolves on another peer.
-            // Suppress all legacy echoes for this Apply and repair from an authoritative snapshot.
-            _cachedFallbackOriginalEdges.Clear();
+            // Never fall back to separate delete/replace/final-edge streams; repair from a snapshot instead.
             _cachedFallbackOriginalEdges.AddRange(rejectedOriginalEdges);
             _cachedMixedRejection = rejection;
 
@@ -217,26 +170,32 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 "after Apply.");
         }
 
-        /// <summary>
-        /// Publish the exact cached courses when the local net tool actually applies its standing
-        /// preview. Called before ToolOutputSystem, while the preview Temps still expose every
-        /// original edge the operation will replace as a split side effect.
-        /// </summary>
-        public void CaptureLocalNetApply()
+        /// <summary>Every definition the cache was read from still stands, so the cache is what applies.</summary>
+        private bool CachedSourcesStanding()
         {
-            CaptureLocalNetApply(refreshStandingDefinitions: true, barrierRecovery: false);
+            if (_cachedLocalSources.Count == 0) return false;
+            for (int i = 0; i < _cachedLocalSources.Count; i++)
+            {
+                Entity source = _cachedLocalSources[i];
+                if (!EntityManager.Exists(source) || !EntityManager.HasComponent<CreationDefinition>(source) ||
+                    EntityManager.HasComponent<Deleted>(source)) return false;
+            }
+            return true;
         }
 
         /// <summary>
-        /// Last-chance Apply capture after <see cref="global::Game.Tools.ToolOutputBarrier"/> has made
-        /// this frame's buffered definitions entity-visible. <see cref="DefinitionGateSystem"/> has
-        /// already passed those exact definitions to <see cref="ObserveLocalNetDefinitions"/>, so do
-        /// not replace them with the older untagged standing graph here.
+        /// Publishes the cached courses when the tool applies, before ToolOutputSystem, while preview Temps
+        /// still expose every original the operation replaces.
         /// </summary>
-        public void CaptureBufferedLocalNetApply()
-        {
+        public void CaptureLocalNetApply() =>
+            CaptureLocalNetApply(refreshStandingDefinitions: true, barrierRecovery: false);
+
+        /// <summary>
+        /// Last-chance capture after <see cref="global::Game.Tools.ToolOutputBarrier"/>; the buffered
+        /// definitions were already observed, so do not replace them with the older standing graph.
+        /// </summary>
+        public void CaptureBufferedLocalNetApply() =>
             CaptureLocalNetApply(refreshStandingDefinitions: false, barrierRecovery: true);
-        }
 
         private void CaptureLocalNetApply(bool refreshStandingDefinitions, bool barrierRecovery)
         {
@@ -249,24 +208,26 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
             if (!(active is global::Game.Tools.NetToolSystem) ||
                 active.applyMode != global::Game.Tools.ApplyMode.Apply) return;
 
-            // Re-read the graph that is actually standing behind this Apply. The after-barrier cache
-            // is intentionally retained across empty preview frames, but a grid can regenerate all of
-            // its courses on the click frame. Publishing a stale or partial cache makes the final-edge
-            // fallback replay every generated edge as a separate operation. A net-owned object graph
-            // (for example a network prefab with its own root object) clears the course cache here and
-            // is captured atomically by BuildSyncSystem instead.
-            if (refreshStandingDefinitions && !_standingLocalDefinitions.IsEmptyIgnoreFilter)
+            // The standing graph has been through course splitting: its cut points carry settled heights that a
+            // receiver's own splitting would settle again (over water, a lake depth too high). Send the courses
+            // read before that; re-read the graph only if the tool replaced it unobserved. A net-owned object
+            // graph goes to BuildSync.
+            if (refreshStandingDefinitions && !CachedSourcesStanding() &&
+                !_standingLocalDefinitions.IsEmptyIgnoreFilter)
             {
+                ClearLocalNetCapture();
                 NativeArray<Entity> definitions =
                     _standingLocalDefinitions.ToEntityArray(Allocator.Temp);
                 try
                 {
-                    ObserveLocalNetDefinitions(definitions);
+                    ObserveLocalNetDefinitions(definitions, split: true);
                 }
                 finally
                 {
                     definitions.Dispose();
                 }
+                SyncLog.Trace(LogTopic.Nets, "net capture read the split graph courses=" +
+                    _cachedLocalCourses.Count + " items=" + _cachedLocalMixedOperation.Count);
             }
 
             if (_cachedLocalMixedOperation.Count > 0)
@@ -290,23 +251,15 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                     .Fact("original edges", _cachedFallbackOriginalEdges.Count));
                 SyncLog.Trace(LogTopic.Nets, "net mixed capture rejected; recovery requested" +
                     (barrierRecovery ? " source=barrier" : string.Empty));
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
+                ClearLocalNetCapture();
                 _nativeApplyCapturedFrame = _realizeFrame;
-                _atomicMixedApplyCapturedFrame = _realizeFrame;
                 return;
             }
 
-            // When a remote batch is armed, BeginRealizeFrame has already Disabled its Temps and
-            // restored the local preview for this Apply frame. The local operation therefore commits
-            // normally and must still be published; the remote batch waits intact for a quiet frame.
+            // With a remote batch armed, BeginRealizeFrame stood it down; this local Apply commits and is sent.
 
             long now = service.NowMs;
             RecordPlacementOriginals(now);
-
-            // A span over water carries the deck committing here; everything else passes through
-            // unchanged. Measured once, at publish.
-            PinWaterProfiles(_cachedLocalCourses);
 
             long operationId = _nextLocalNetOperationId++;
             if (_nextLocalNetOperationId <= 0) _nextLocalNetOperationId = 1;
@@ -314,9 +267,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
             var encoded = new List<byte[]>(count);
             try
             {
-                // Encode the complete operation before sending its first course. A locally unusual
-                // definition then falls back as a whole to final-edge capture instead of publishing
-                // a partial native operation.
+                // Encode everything first; an unusual definition falls back as a whole.
                 for (int i = 0; i < count; i++)
                 {
                     NetPlacementCommand command = _cachedLocalCourses[i];
@@ -328,7 +279,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
             }
             catch (System.Exception ex)
             {
-                _cachedLocalCourses.Clear();
+                ClearLocalNetCapture();
                 SyncLog.Warn(LogTopic.Nets, "NetSync intent capture could not encode operation; " +
                     "using final-edge capture: " + ex.Message);
                 return;
@@ -351,10 +302,8 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                 }
             }
 
-            _cachedLocalCourses.Clear();
-            // A partial native envelope is deliberately not considered captured. The receiver will
-            // expire those fragments as one incomplete operation, while final-edge capture remains
-            // enabled to provide a complete geometry fallback for this local apply.
+            ClearLocalNetCapture();
+            // A partial envelope does not count as captured; final-edge capture stays on as the fallback.
             if (sent == count) _nativeApplyCapturedFrame = _realizeFrame;
             if (sent > 0)
                 SyncLog.Trace(LogTopic.Nets, "net intent apply op=" + operationId + " courses=" +
@@ -362,9 +311,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
         }
 
         /// <summary>
-        /// Publish every native definition from one heterogeneous net-tool Apply as one command.
-        /// The receiver can then resolve deletes/replacements against its original topology and arm
-        /// all generated Temps together; no independent capture stream is allowed to echo members.
+        /// One heterogeneous net-tool Apply as one command, so the receiver resolves and arms it together.
         /// </summary>
         private void CaptureAtomicMixedNetApply(MultiplayerService service, bool barrierRecovery)
         {
@@ -385,8 +332,6 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
                         _committedNetSideEffects[original] = sideEffectExpiry;
                 }
             }
-
-            PinWaterProfiles(_cachedLocalMixedOperation);
 
             long operationId = _nextLocalNetOperationId++;
             if (_nextLocalNetOperationId <= 0) _nextLocalNetOperationId = 1;
@@ -447,21 +392,15 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
             }
             catch (System.Exception ex)
             {
-                // A fragmented fallback is exactly the failure this envelope prevents. Suppress
-                // every legacy echo even when encoding/sending fails, and repair the peer from a
-                // world snapshot instead of racing delete/replace/place streams again.
+                // Suppress legacy echoes even when sending fails; the peer is repaired from a snapshot.
                 SyncLog.Warn(LogTopic.Nets, "NetSync atomic mixed apply could not be sent: " +
                     ex.Message);
                 service.RequestAutomaticWorldRecovery("atomic mixed road operation could not be sent");
             }
             finally
             {
-                _cachedLocalMixedOperation.Clear();
-                _cachedLocalCourses.Clear();
-                _cachedFallbackOriginalEdges.Clear();
-                _cachedMixedRejection = null;
+                ClearLocalNetCapture();
                 _nativeApplyCapturedFrame = _realizeFrame;
-                _atomicMixedApplyCapturedFrame = _realizeFrame;
             }
 
             SyncLog.Trace(LogTopic.Nets, "net atomic mixed apply op=" + operationId + " items=" +
@@ -470,27 +409,22 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Net
         }
 
         /// <summary>
-        /// Consume an exact original edge recorded from a committing Temp transaction. DeleteSync
-        /// calls this before its geometry heuristics; a match has already been represented by the
-        /// placement/delete/replace command that caused it and must not become a second command.
+        /// An original edge recorded from a committing transaction; DeleteSync asks first so it is not
+        /// sent twice.
         /// </summary>
         public bool ConsumeCommittedNetSideEffect(Entity edge, long now)
         {
             if (_atomicMixedOriginalsFrame == _realizeFrame &&
                 _atomicMixedOriginals.Remove(edge)) return true;
 
-            long expires;
-            if (!_committedNetSideEffects.TryGetValue(edge, out expires)) return false;
+            if (!_committedNetSideEffects.TryGetValue(edge, out long expires)) return false;
             _committedNetSideEffects.Remove(edge);
             return expires >= now;
         }
 
         /// <summary>
-        /// A course the game generated as the hidden connector of some owner - a building driveway,
-        /// a lot path - rather than something the player drew. Both the new prefab and the original
-        /// it re-cuts are checked, because an edit beside a building produces one definition per
-        /// affected connector in either form. The receiver regenerates these from the visible net,
-        /// so they are skipped rather than transmitted or treated as unrepresentable.
+        /// A hidden connector course (driveway, lot path), new or re-cut. The receiver regenerates these
+        /// from the visible net.
         /// </summary>
         private bool IsGeneratedHiddenSubNet(CreationDefinition definition)
         {

@@ -1,6 +1,7 @@
-import { useLocalization } from "cs2/l10n";
-import { getModule } from "cs2/modding";
+import { GROUP, tryModule, useT } from "mods/ui-helpers";
+import { bindValue } from "cs2/api";
 import { Button, Dropdown, DropdownToggle } from "cs2/ui";
+import hubClasses from "./mp-hub.module.scss";
 import { CSSProperties } from "react";
 
 // Shared by the main-menu join/host screens and the in-game hub so all three
@@ -21,14 +22,30 @@ export const CONNECTION_LOC = {
     joinCodeSelectHint: "CS2MP.Connection.JoinCodeSelectHint",
     joinCodeEntry: "CS2MP.Connection.JoinCodeEntry",
     joinCodeEntryHint: "CS2MP.Connection.JoinCodeEntryHint",
+    publicPasswordHint: "CS2MP.Connection.PublicPasswordHint",
 };
 
-const tryModule = (path: string, exportName: string): any => {
-    try {
-        return getModule(path, exportName);
-    } catch {
-        return null;
-    }
+// Fallback for CS2MP.UI.ListPubliclyHint, shown behind an info icon on both host screens.
+export const LIST_PUBLICLY_HINT =
+    "Anyone on Steam can find this city in Public Lobbies, and Approve Players stays on. Players from the list always connect through the Steam relay, so they never see your IP address - not before and not after you accept them. For public hosting we recommend Steam Relay: with Direct Connection your port stays open to the internet.";
+
+// The C# session rule (MultiplayerConfig.MinPublicPasswordLength), so both host
+// screens warn before a host attempt is refused rather than after.
+export const publicPasswordMinLength$ = bindValue<number>(GROUP, "publicPasswordMinLength", 8);
+
+/** Direct, non-LAN hosting with a password the session would refuse. */
+export const publicPasswordMissing = (relay: boolean, lanOnly: boolean, password: string, minLength: number) =>
+    !relay && !lanOnly && (password ?? "").length < minLength;
+
+/** "{0}" is the minimum length, "{1}" how many characters are typed so far. */
+export const usePublicPasswordHint = (password: string, minLength: number) => {
+    const t = useT();
+    return t(
+        CONNECTION_LOC.publicPasswordHint,
+        "Hosting over the internet needs a password of at least {0} characters ({1}/{0}). Or switch LAN Only on, or use Steam Relay.",
+    )
+        .split("{0}").join(String(minLength))
+        .split("{1}").join(String((password ?? "").length));
 };
 
 // The menu's own dropdown skin, so this matches the native dropdowns elsewhere.
@@ -51,11 +68,6 @@ const fallbackOption: CSSProperties = {
     padding: "9rem 14rem",
     fontSize: "17rem",
     textAlign: "left",
-};
-
-export const useT = () => {
-    const { translate } = useLocalization();
-    return (id: string, fallback: string) => translate(id, fallback) ?? fallback;
 };
 
 interface ConnectionDropdownProps {
@@ -126,19 +138,6 @@ const segment: CSSProperties = {
     fontSize: "13rem",
     textAlign: "center",
     borderRadius: "3rem",
-    border: "1rem solid rgba(157, 193, 222, 0.35)",
-};
-
-const segmentSelected: CSSProperties = {
-    ...segment,
-    backgroundColor: "rgba(157, 193, 222, 0.30)",
-    color: "#ffffff",
-};
-
-const segmentIdle: CSSProperties = {
-    ...segment,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
-    color: "#9dc1de",
 };
 
 /**
@@ -153,8 +152,10 @@ export const ConnectionSegmented = ({ value, disabled, onChange }: ConnectionDro
     const seg = (optionValue: string, label: string, selected: boolean) => (
         <Button
             variant="flat"
+            className={disabled ? hubClasses.disabled : hubClasses.enabled}
+            selected={selected}
             style={{
-                ...(selected ? segmentSelected : segmentIdle),
+                ...segment,
                 ...(disabled ? { opacity: 0.55 } : null),
                 marginRight: optionValue === CONNECTION_RELAY ? "6rem" : 0,
             }}

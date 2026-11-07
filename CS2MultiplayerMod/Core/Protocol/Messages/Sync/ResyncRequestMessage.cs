@@ -1,17 +1,14 @@
 namespace CS2MultiplayerMod.Core.Protocol.Messages
 {
     /// <summary>
-    /// Client -> host: "stream current world now." Sent when the player runs <c>/sync</c>
-    /// due to suspected city drift, and when the client's own sync pipeline settles on a
-    /// world reload. Host saves and streams its live world - a full re-baseline, on demand.
-    ///
-    /// <see cref="Reason"/> carries WHY, so the host's log distinguishes a player pressing
-    /// the button from a client that could not apply an edit. It is untrusted display text:
-    /// the reader sanitizes it, and nothing branches on its content.
+    /// Client -> host: stream the current world now, from <c>/sync</c> or a settled pipeline fault.
+    /// <see cref="Reason"/> is untrusted log text; nothing branches on it.
     /// </summary>
     public sealed class ResyncRequestMessage : INetMessage
     {
         public int OriginPlayerId;
+        public long StateRequestId;
+        public StateDigest[] Digests = System.Array.Empty<StateDigest>();
         /// <summary>Notice attribution only; never changes permission or recovery policy.</summary>
         public bool IsAutomatic;
 
@@ -31,9 +28,28 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
 
         public void Write(NetworkWriter writer)
         {
+            ValidateDigests();
             writer.WriteInt(OriginPlayerId);
             writer.WriteBool(IsAutomatic);
             writer.WriteString(WireGuard.SanitizeText(Reason, WireGuard.MaxResyncReasonLength));
+            writer.WriteLong(StateRequestId);
+            writer.WriteByte((byte)Digests.Length);
+            foreach (var digest in Digests)
+            {
+                writer.WriteByte(digest.ChannelId);
+                writer.WriteBytes(digest.Hash, 0, 32);
+            }
+        }
+
+        private void ValidateDigests()
+        {
+            if (StateRequestId < 0 || Digests == null || Digests.Length > StateRepairMessage.MaxChannels ||
+                (StateRequestId == 0) != (Digests.Length == 0))
+                throw new ProtocolException("Invalid state repair request.");
+            var seen = new System.Collections.Generic.HashSet<byte>();
+            foreach (var digest in Digests)
+                if (digest == null || !seen.Add(digest.ChannelId) || digest.Hash == null || digest.Hash.Length != 32)
+                    throw new ProtocolException("Invalid state repair digest.");
         }
 
         public void Read(NetworkReader reader)
@@ -41,6 +57,13 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
             OriginPlayerId = reader.ReadInt();
             IsAutomatic = reader.ReadBool();
             Reason = WireGuard.SanitizeText(reader.ReadString(), WireGuard.MaxResyncReasonLength);
+            StateRequestId = reader.ReadLong();
+            int count = reader.ReadByte();
+            if (count > StateRepairMessage.MaxChannels) throw new ProtocolException("Too many repair digests.");
+            Digests = new StateDigest[count];
+            for (int i = 0; i < count; i++)
+                Digests[i] = new StateDigest { ChannelId = reader.ReadByte(), Hash = reader.ReadBytes(32) };
+            ValidateDigests();
         }
     }
 }

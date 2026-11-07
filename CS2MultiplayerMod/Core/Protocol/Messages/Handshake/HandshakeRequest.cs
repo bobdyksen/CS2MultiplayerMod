@@ -1,10 +1,9 @@
 namespace CS2MultiplayerMod.Core.Protocol.Messages
 {
     /// <summary>
-    /// Client's answer to <see cref="HandshakeChallenge"/>. Host validates protocol,
-    /// builds, DLC list, and password proof first. <see cref="PasswordProof"/> is
-    /// HMAC-SHA256(password, nonce | channel-binding). <see cref="DlcList"/> (sorted)
-    /// carries sync-relevant DLC names; differing DLCs cause desync.
+    /// Answer to <see cref="HandshakeChallenge"/>: protocol, builds, sorted sync-relevant
+    /// <see cref="DlcList"/>, the other live mods in <see cref="ModManifest"/> and <see cref="PasswordProof"/> =
+    /// HMAC-SHA256(password, nonce | channel binding).
     /// </summary>
     public sealed class HandshakeRequest : INetMessage
     {
@@ -14,18 +13,28 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
         public string PlayerName;
         public byte[] PasswordProof;
         public string[] DlcList;
+        /// <summary>Source commit of the sender's build; logged, never compared.</summary>
+        public string BuildId;
+        /// <summary>Sorted <see cref="ModManifestEntry"/> lines for every other live mod.</summary>
+        public string[] ModManifest;
+        /// <summary>The joiner's note for the host's approval prompt; plain text, sanitized on read.</summary>
+        public string JoinMessage;
 
         public HandshakeRequest() { }
 
         public HandshakeRequest(int protocolVersion, string modVersion, string gameVersion,
-                                string playerName, byte[] passwordProof, string[] dlcList = null)
+                                string playerName, byte[] passwordProof, string[] dlcList = null,
+                                string buildId = null, string[] modManifest = null, string joinMessage = null)
         {
+            JoinMessage = joinMessage ?? string.Empty;
             ProtocolVersion = protocolVersion;
             ModVersion = modVersion;
             GameVersion = gameVersion;
             PlayerName = playerName;
             PasswordProof = passwordProof ?? System.Array.Empty<byte>();
             DlcList = dlcList ?? System.Array.Empty<string>();
+            BuildId = buildId ?? string.Empty;
+            ModManifest = modManifest ?? System.Array.Empty<string>();
         }
 
         public MessageType Type => MessageType.HandshakeRequest;
@@ -45,6 +54,14 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
             writer.WriteInt(dlcCount);
             for (int i = 0; i < dlcCount; i++)
                 writer.WriteString(DlcList[i] ?? string.Empty);
+
+            writer.WriteString(BuildId ?? string.Empty);
+            int modCount = ModManifest != null ? ModManifest.Length : 0;
+            if (modCount > ProtocolConstants.MaxModManifestEntries) modCount = ProtocolConstants.MaxModManifestEntries;
+            writer.WriteInt(modCount);
+            for (int i = 0; i < modCount; i++)
+                writer.WriteString(ModManifest[i] ?? string.Empty);
+            writer.WriteString(JoinMessage ?? string.Empty);
         }
 
         public void Read(NetworkReader reader)
@@ -64,10 +81,19 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
             DlcList = dlcCount > 0 ? new string[dlcCount] : System.Array.Empty<string>();
             for (int i = 0; i < dlcCount; i++)
             {
-                // DLC names end up in reject messages and logs, so they are sanitized
-                // like any other display text instead of trusted off the wire.
+                // DLC names reach reject messages and logs.
                 DlcList[i] = WireGuard.SanitizeText(reader.ReadString(), ProtocolConstants.MaxDlcNameLength);
             }
+
+            BuildId = WireGuard.SanitizeText(reader.ReadString(), ProtocolConstants.MaxBuildIdLength);
+            int modCount = reader.ReadInt();
+            if (modCount < 0 || modCount > ProtocolConstants.MaxModManifestEntries)
+                throw new ProtocolException("Implausible mod count: " + modCount + ".");
+            ModManifest = modCount > 0 ? new string[modCount] : System.Array.Empty<string>();
+            for (int i = 0; i < modCount; i++)
+                ModManifest[i] = WireGuard.SanitizeText(reader.ReadString(),
+                    ProtocolConstants.MaxModManifestEntryLength);
+            JoinMessage = WireGuard.SanitizeDisplayText(reader.ReadString(), ProtocolConstants.MaxJoinMessageLength);
         }
     }
 }

@@ -20,10 +20,10 @@ docs/
 .idea
 CLAUDE.md
 Logs/
-tests/
+test/
 .mcp.json
 
-# MkDocs build output
+# Static documentation build output
 site/
 .venv/
 

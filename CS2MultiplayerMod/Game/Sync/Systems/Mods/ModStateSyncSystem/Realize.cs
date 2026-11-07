@@ -26,11 +26,6 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
         }
 
         /// <summary>
-        /// Keyed by carrier, latest wins. A closure is a complete statement about one carrier, so a
-        /// newer one for the same carrier replaces the older entirely - there is no sense in
-        /// applying a superseded description of the same junction first.
-        /// </summary>
-        /// <summary>
         /// Closures waiting for something they name. Latest per carrier, bounded, and a shed
         /// asks once for the host world instead of forgetting that carrier forever.
         /// </summary>
@@ -142,8 +137,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
 
         private void Receive(MultiplayerSession session, long now)
         {
-            SimulationCommandMessage message;
-            while (_incomingState.TryDequeue(out message))
+            while (_incomingState.TryDequeue(out SimulationCommandMessage message))
             {
                 if (message.OriginPlayerId == session.LocalPlayerId) continue;
 
@@ -165,8 +159,7 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
                     " bytes, " + command.Snapshot.CarrierValues.Components.Count + " type(s), " +
                     command.Snapshot.Satellites.Count + " satellite(s))");
 
-                Held existing;
-                if (_held.TryGet(key, out existing))
+                if (_held.TryGet(key, out Held existing))
                 {
                     existing.Snapshot = command.Snapshot;
                     existing.FirstSeenMs = now;
@@ -181,45 +174,27 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
         }
 
         /// <summary>
-        /// Closes out a closure that has just been written into the world.
-        ///
-        /// The host answers for what the carrier holds afterwards, and says so to everyone - the
-        /// sender included. Without that, two players editing the same junction inside one
-        /// round trip end up on opposite answers rather than one: each applies the other's closure
-        /// after their own, so the one whose change the host took first keeps the one the host
-        /// discarded. Re-publishing the host's result is what makes them converge, and it is cheap
-        /// because a closure is a complete statement - applying it twice changes nothing.
-        ///
-        /// A client has no such say. It records what it just applied so that its own capture
-        /// recognises the state as already known and does not send it straight back.
+        /// After applying a closure. The host republishes the result to everyone, the sender included, so
+        /// two simultaneous edits converge on the host's answer. A client records it so it is not echoed.
         /// </summary>
-        private void Settle(MultiplayerSession session, ModEntityRef carrierRef, string key)
-        {
+        private void Settle(MultiplayerSession session, ModEntityRef carrierRef, string key) =>
             _awaitingSettle[key] = carrierRef;
-        }
 
         private void SettleApplied(MultiplayerSession session)
         {
             foreach (KeyValuePair<string, ModEntityRef> pair in _awaitingSettle)
             {
-                Entity carrier;
-                if (!_identity.TryResolve(pair.Value, out carrier)) continue;
+                if (!_identity.TryResolve(pair.Value, out Entity carrier)) continue;
 
-                // Resolve using the sender's position, but record exactly what local capture
-                // will read. Hashing the remote header makes even millimetre differences echo;
-                // a position across a key bucket also bypasses the shadow entirely.
-                ModEntityRef localRef;
-                if (!_identity.TryDescribe(carrier, out localRef)) continue;
-                byte[] body;
-                ulong hash;
-                if (!TryEncode(carrier, localRef, out body, out hash)) continue;
+                // Resolve with the sender's position but record what local capture will read, or it echoes.
+                if (!_identity.TryDescribe(carrier, out ModEntityRef localRef)) continue;
+                if (!TryEncode(carrier, localRef, out byte[] body, out ulong hash)) continue;
 
                 string localKey = localRef.Key();
                 _shadow[localKey] = hash;
                 RememberCarrier(localKey, localRef);
 
-                // An empty closure no longer matches the capture query. Publish explicitly so
-                // removal acknowledgements also reach the sender, independent of chunk versions.
+                // An empty closure no longer matches the capture query; publish removals explicitly.
                 if (session.Role != SessionRole.Host || !ModSyncFeature.SendCaptured) continue;
                 session.SendCommand(0, ModStateCommand.Id, body);
                 _sentBytes += body.Length;
@@ -229,16 +204,11 @@ namespace CS2MultiplayerMod.Game.Sync.Systems.Mods
             _awaitingSettle.Clear();
         }
 
-        /// <summary>
-        /// One complaint per carrier per ten seconds. A carrier that cannot be resolved usually
-        /// cannot be resolved repeatedly, and a log that says so sixty times a second is a log
-        /// nobody can read the rest of.
-        /// </summary>
+        /// <summary>One complaint per carrier per ten seconds.</summary>
         private void Complain(string key, string message, System.Exception ex)
         {
             int now = System.Environment.TickCount;
-            int last;
-            if (_lastComplaintTick.TryGetValue(key, out last) &&
+            if (_lastComplaintTick.TryGetValue(key, out int last) &&
                 unchecked(now - last) < ComplaintThrottleMs) return;
             _lastComplaintTick[key] = now;
 

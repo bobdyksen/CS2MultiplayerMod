@@ -1,12 +1,11 @@
+using System.Globalization;
 using System.Text;
 
 namespace CS2MultiplayerMod.Core.Protocol
 {
     /// <summary>
-    /// Validation helpers for wire values. Everything a remote peer controls - counts,
-    /// lengths, floats, names - must pass through here. All failures throw
-    /// <see cref="ProtocolException"/>, which every receive path treats as drop message
-    /// / disconnect sender, never crash.
+    /// Validation for everything a peer controls. Failures throw <see cref="ProtocolException"/>, which
+    /// every receive path turns into a dropped message or disconnect.
     /// </summary>
     public static class WireGuard
     {
@@ -26,16 +25,21 @@ namespace CS2MultiplayerMod.Core.Protocol
         public const int MaxItemCount = 4096;
 
         /// <summary>
-        /// Sanity bound for a course endpoint's split position. Not a semantic range: the value is
-        /// an extended curve parameter that runs past 1 by however far a snap sat beyond the
-        /// curve's end, and every consumer clamps it to 0..1 before use.
+        /// A sanity bound, not a range: an extended curve parameter, clamped to 0..1 by every consumer.
         /// </summary>
         public const float MaxSplitPosition = 1000f;
 
+        /// <summary>A bool byte that must be 0 or 1; anything else is "Invalid <paramref name="what"/>."</summary>
+        public static bool ReadStrictBool(NetworkReader reader, string what)
+        {
+            byte value = reader.ReadByte();
+            if (value > 1) throw new ProtocolException("Invalid " + what + ".");
+            return value != 0;
+        }
+
         /// <summary>
-        /// Read repeat count as 16-bit value, prove it's plausible: non-negative,
-        /// under <paramref name="maxItems"/>, and bytesPerItem x count fits remaining
-        /// bytes - so forged count can never cause huge allocation.
+        /// A 16-bit count that is non-negative, under <paramref name="maxItems"/>, and fits the remaining bytes
+        /// at <paramref name="bytesPerItem"/>, so a forged count cannot force a huge allocation.
         /// </summary>
         public static int ReadCount(NetworkReader reader, int bytesPerItem, int maxItems = MaxItemCount)
         {
@@ -83,10 +87,8 @@ namespace CS2MultiplayerMod.Core.Protocol
         }
 
         /// <summary>
-        /// Sanitize free text for display/logging: strip control characters (kills log
-        /// injection via embedded newlines/ANSI), collapse to the length cap, and never
-        /// return null. Used for player names and chat lines rather than rejecting, so a
-        /// sloppy-but-honest client still works.
+        /// Strips control characters (log injection), truncates, never returns null. Sanitizes rather than
+        /// rejects names and chat.
         /// </summary>
         public static string SanitizeText(string value, int maxLength)
         {
@@ -100,6 +102,58 @@ namespace CS2MultiplayerMod.Core.Protocol
                 sb.Append(c);
             }
             return sb.ToString().Trim();
+        }
+
+        /// <summary>
+        /// <see cref="SanitizeText"/> for free text another player reads: also drops formatting characters
+        /// (bidi overrides, zero-width marks), unpaired surrogates and stacked combining marks, and folds
+        /// whitespace to single spaces. Never splits a surrogate pair at the cap.
+        /// </summary>
+        public static string SanitizeDisplayText(string value, int maxLength)
+        {
+            const int maxCombiningRun = 3;
+            if (string.IsNullOrEmpty(value)) return string.Empty;
+
+            var sb = new StringBuilder(value.Length < maxLength ? value.Length : maxLength);
+            bool pendingSpace = false;
+            int combiningRun = 0;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (char.IsWhiteSpace(c))
+                {
+                    pendingSpace = sb.Length > 0;
+                    continue;
+                }
+
+                int width = 1;
+                if (char.IsHighSurrogate(c))
+                {
+                    if (i + 1 >= value.Length || !char.IsLowSurrogate(value[i + 1])) continue;
+                    width = 2;
+                    combiningRun = 0;
+                }
+                else
+                {
+                    UnicodeCategory category = char.GetUnicodeCategory(c);
+                    if (category == UnicodeCategory.Control || category == UnicodeCategory.Format ||
+                        category == UnicodeCategory.Surrogate || category == UnicodeCategory.OtherNotAssigned)
+                        continue;
+                    bool combining = category == UnicodeCategory.NonSpacingMark ||
+                                     category == UnicodeCategory.EnclosingMark ||
+                                     category == UnicodeCategory.SpacingCombiningMark;
+                    combiningRun = combining ? combiningRun + 1 : 0;
+                    if (combiningRun > maxCombiningRun) continue;
+                }
+
+                int space = pendingSpace ? 1 : 0;
+                if (sb.Length + space + width > maxLength) break;
+                if (space == 1) sb.Append(' ');
+                pendingSpace = false;
+                sb.Append(c);
+                if (width == 2) sb.Append(value[++i]);
+            }
+            return sb.ToString();
         }
 
         /// <summary>Sanitize a player name; falls back to "Player" when nothing survives.</summary>
