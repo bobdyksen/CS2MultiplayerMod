@@ -1,9 +1,121 @@
 ---
 title: Changelog
-description: "What changed in each release of the mod: new features, sync work and fixes."
+layout: changelog
+seo_title: "Changelog and release notes | CS2 Multiplayer Mod"
+description: "Read the Cities: Skylines II Multiplayer Mod release notes, including new features, synchronization changes, connection improvements and bug fixes."
 ---
 
 # Changelog
+
+## Version 0.1.7.3 - 2026-10-25
+
+This update fixes sessions getting stuck on "Syncing World" while a large fire, such as a forest fire, was burning in the city.
+
+### Sync fixes
+
+* Fixed a large fire making the game reload the city over and over, which left players stuck on "Syncing World" until they were disconnected. Fire updates are now spread over several frames, and if too many arrive at once, the oldest are skipped instead of reloading the city. Burning fires are sent again every few seconds, so a skipped update corrects itself.
+* The host no longer queues its own fire and traffic accident updates, which could make it start a world sync by itself.
+
+## Version 0.1.7.2 - 2026-10-20
+
+This update adds Public Lobbies, so Steam players can find and join a city without sharing a code. It also brings map pings, player camera navigation, automatic reconnection and smaller world syncs, and a redesigned multiplayer panel. Roads and bridges built by one player no longer end up at a different height for the other, and pipes and tunnels are no longer changed by road upgrades above them.
+
+### New
+
+* Public Lobbies: Steam hosts can turn on **List Publicly** to show their city in the new **Public Lobbies** screen in the main menu. Anyone on Steam can find and join it there without a join code.
+    * Players from the list always connect through the Steam relay, so no IP address is shared in either direction, not even after the host accepts them. This also applies when the host uses a direct connection: the direct port stays open for direct joins, and players from the list still come in through the relay.
+    * Approve Players is always on while a city is listed. Auto-Approve Steam Friends can be used with it, also for direct hosts.
+    * Hosts can give the lobby a name (up to 48 characters) and require a join message (up to 160 characters) that they read in the join request before accepting or declining. The message is shown as plain text only.
+    * A declined player cannot ask to join again for five minutes.
+    * The list can be searched by name and filtered by free slots and password, and shows each lobby's player count, ping and version.
+    * List Publicly turns itself off every time the game starts, so a city is never public because of an earlier choice.
+    * Public Lobbies need the Steam version of the game.
+* Map Pings: choose **Ping map location** in the multiplayer panel to mark the spot at the centre of your screen. Every player sees a pulsing marker in your player color for ten seconds, and the session activity shows who pinged. Pings do not change the city and are not saved.
+* Player Camera Navigation: **View location** in the player list moves your camera to another player's view, and **Follow** keeps your camera with them as they move. Moving the camera yourself or pressing Escape stops following, and it also stops during a world sync or when that player disconnects.
+* Automatic Reconnection: if a client unexpectedly loses the connection to the host, the mod reconnects by itself, with up to six attempts within two minutes. The connection screen shows the progress, and Cancel leaves the session. After reconnecting, the client loads the host's current city. Kicks, bans, a closed session and refused joins are never retried.
+* Smart Resync: **Repair sync** in the multiplayer panel compares money, XP, development points, tourism and weather with the host and corrects only the values that differ, without reloading the city. If the repair does not work, the mod falls back to a world sync.
+* A world sync requested by a client, or started automatically because of a problem on one client, now reloads only that client's city. The other players pause briefly while it is sent, but do not download or reload the city.
+
+### Multiplayer panel
+
+* The panel was redesigned to match the game's UI. Player list, session controls, session activity and chat are now in one place.
+* Each player has their own color, which makes players easier to tell apart.
+* Joins, leaves, pings, world syncs and errors are shown in a separate **Session activity** list. They no longer fill the chat or count as unread messages.
+* Chat: consecutive messages from the same player are grouped, a counter shows how many characters are left, and an unread badge shows new messages while the panel is closed.
+* New mini mode: the panel can be minimized to a small chat-only window.
+* Chat and session activity are cleared when a new session starts, and the chat input is reset when leaving a session.
+* The host settings on the Host screen and in the panel are grouped into collapsible **Settings** and **Public Listing** sections, with info icons that explain each option. Auto-Approve Steam Friends is greyed out instead of hidden while Approve Players is off.
+
+### Sync fixes
+
+* Fixed road joints ending up raised or sunk for the other player on sloped ground, which left nearby buildings without road, water and electricity connections.
+* Fixed ground-level bridges over water jumping to a different height for the other player.
+* Upgrading or replacing a road no longer changes a pipe, subway or tunnel running below it for the other player, and replacing a pipe no longer changes the road above it.
+* Fewer unnecessary world syncs: growing buildings now use the host's road connection, and buildings waiting for a road from the other player keep retrying instead of starting a world sync right away.
+* The message for an automatic world sync now names the player it is for.
+
+### Documentation
+
+* The help website has a new design with light and dark mode and an updated search.
+
+## Version 0.1.7.1 - 2026-10-12
+
+This update is mostly about performance in large cities. Hosts and clients both do far less work keeping a big city in sync, the host no longer stutters once a second, and painting trees no longer slows down the other players. It also adds Move It and Node Controller support, makes fires and traffic accidents the same for every player, adds IPv6 and more host controls, and fixes players being disconnected on slower Steam Relay connections.
+
+### Performance
+
+* Clients in large cities do much less work keeping homes and households in sync. Households that have not changed are skipped, families waiting for a free home are no longer re-applied again and again, and the checking work is limited by the number of residents, so very dense cities no longer slow it down.
+* Workplaces use much less bandwidth: a company's employee list is only sent again when it actually changes.
+* The host no longer stutters once a second in large cities. It used to collect all city data in a single frame every second; this is now spread across the whole second.
+* The host does less work tracking households that leave the city, and no longer checks trees when looking for building colour changes.
+* Painting trees and props with the object brush no longer slows down the other players. Strokes are sent as the finished objects and placed in one frame, instead of every brushed frame making the other players' games search the whole city. Dense strokes are sent in batches instead of one message per object.
+* Steam Relay copes better with slow connections. It no longer speeds up blindly at the start of a world download, and outdated connection reports no longer keep cutting the transfer speed.
+* The household money corrections do less work, and the host checks fewer homes per update.
+
+### New
+
+* Move It: moving buildings, props and trees is now synchronized once you let go. Objects with attached sub-objects are not supported yet.
+* Move It and Node Controller road edits are now synchronized when the edit ends. If the mod cannot tell which road was edited, it holds the edit instead of changing the wrong road.
+* Fires are now decided by the host: which buildings and trees catch fire (including from lightning), how bad the fire gets and whether a building burns down are the same for every player. The flames and fire engines still run on every computer.
+* Traffic accidents now happen on the same road for every player. The cars involved can still differ.
+* Data that compatible mods save with the city is now synchronized.
+* Host Game now includes Approve Players and Simulation Sync.
+* New Auto-Approve Steam Friends option: Steam friends can join right away while everyone else waits for approval. Steam Relay only.
+* New setting for who may request a world sync: Allow, Ask Host or Host Only. With Ask Host, the host gets a popup showing who asked and why.
+* Direct Connection now supports IPv6, for players whose internet provider does not give them their own IPv4 address. Host Address accepts IPv6, also with a port, like `[2001:db8::1]:25001`.
+* When a player joins, the host compares both players' active mods and their versions and names exactly which ones differ. Ignore Mod Compatibility Checks (Own Risk) still lets them in.
+* Save Diagnostics in the General options tab and `/diag` in the chat save one file with everything needed for a bug report into the game's Logs folder.
+* Transport passenger and cargo statistics now show the host's numbers for every player.
+* Clients now get the normal milestone popup when the host reaches a new milestone.
+
+### Connection fixes
+
+* Fixed players being disconnected on Steam Relay during a world download or in busy sessions. The client used to give up after 10 seconds; it now waits up to 60 seconds as long as data is still arriving.
+* Fixed players being kicked with "rate limit exceeded: commands/sec" when the host's game stuttered.
+* Losing the connection now says "Lost the connection to the host" instead of claiming the host disconnected you.
+* Hosting a Direct Connection over the internet now requires a password of at least 8 characters, because anyone who found the port could otherwise join and download the city. Steam Relay and LAN Only are not affected.
+* The Direct Connection host screen in the main menu now has Port, Password and LAN Only fields, and both host screens show how many password characters are still missing.
+
+### Sync fixes
+
+* Fixed fires appearing in different places for each player, and buildings burning down for one player while they still stood for the host.
+* Fixed terraforming giving different heights for players running at different frame rates.
+* Fixed roads built on freshly terraformed ground turning into a different road for the other player, for example a retaining-wall road for one and a ground road for the other.
+* Straight roads now keep the exact slope they were built with for every player, even if the ground changed before the road arrived.
+* Drawing a long road no longer triggers a world sync when the other player's game is a little behind.
+* Statistics such as deaths, births and mail no longer slowly drift above the host's numbers.
+* Zone-grown buildings now look the same for every player.
+* Resetting a building's colour or a Road Speed Adjuster speed back to default is now synchronized.
+* Household income is corrected right after the game recalculates it, so clients no longer show outdated values.
+* Brush outlines for trees and props are no longer mistaken for terrain edits.
+* Mod data is only applied when exactly one road, node or object matches, and a different mod version can no longer write values into the wrong place.
+* Fixed the main-menu button, in-game button and milestone countdown all missing on some installations.
+
+### Quality of life
+
+* Milestone and unlock popups now close by themselves after 10 seconds in multiplayer, with a countdown bar, so an AFK player can no longer keep the whole session paused.
+* The Options page shows the mod version at the top of the General tab. The read-only status rows were removed, since the in-game multiplayer panel shows the same information live.
+* The host's log records the mod build of every player who joins.
 
 ## Version 0.1.7 - 2026-09-15
 
@@ -115,13 +227,13 @@ Improving performance under these new workloads will remain an important focus g
 * Improved logging throughout the synchronization systems, making issues easier to identify, reproduce and fix.
 * World reload logs now include more context about the affected edit, what was found instead, how long the system waited and what recovery steps were attempted first.
 
-## Contributing
+### Contributing
 
 Contributing to the project has previously been difficult, if not nearly impossible.
 
 Going forward, the project will have a dedicated development branch, making it significantly easier for other developers to contribute, test changes and help improve the mod.
 
-## 0.1.6 - 2026-08-24
+## Version 0.1.6 - 2026-08-24
 
 This update focuses on synchronization, chat and general stability.
 
@@ -147,16 +259,16 @@ This update focuses on synchronization, chat and general stability.
 - [This documentation site](index.md), covering setup, connections and every error the
   mod can show
 
-## 0.1.5h2 - 2026-08-12
+## Version 0.1.5h2 - 2026-08-12
 
 - Fixed the mod not loading for non-Steam players.
 
-## 0.1.5h1 - 2026-08-11
+## Version 0.1.5h1 - 2026-08-11
 
 - Fixed CS1 Treasure Hunt blocking a connection.
 - Fixed client placement throwing an exception.
 
-## 0.1.5 - 2026-08-11
+## Version 0.1.5 - 2026-08-11
 
 Steam Relay arrived: no port forwarding and no manual IP setup. Host a game, share your
 lobby code, and friends join instantly.
@@ -207,7 +319,7 @@ performance.
 
 - Better error messages for hosts.
 
-## 0.1.4 - 2026-07-22
+## Version 0.1.4 - 2026-07-22
 
 This update focuses on synchronization improvements, crash fixes and a smoother multiplayer
 experience. There were also many smaller fixes for stability.
@@ -231,7 +343,7 @@ experience. There were also many smaller fixes for stability.
 - Updated hosting interface.
 - Clearer and easier to understand error messages when connecting.
 
-## 0.1.3 - 2026-07-11
+## Version 0.1.3 - 2026-07-11
 
 ### Bug fixes
 
@@ -247,17 +359,17 @@ experience. There were also many smaller fixes for stability.
 
 - A crash logging system.
 
-## 0.1.2 - 2026-07-09
+## Version 0.1.2 - 2026-07-09
 
 - Building and road spam no longer crashes the game.
 - Roundabouts place correctly.
 - Build mode synchronizes properly.
 
-## 0.1.1 - 2026-07-08
+## Version 0.1.1 - 2026-07-08
 
 - Host-authoritative sessions, world transfer on join, and synchronized roads, zoning,
   services, finances, progression, time and weather.
 
-## 0.1.0
+## Version 0.1.0 - 2026-07-07
 
 - The first public release.
