@@ -34,7 +34,7 @@ Possible internal details:
 - `Protocol mismatch: host v<version>, this build v<version>.`
 - `Mod version mismatch: host <version>, client <version>.`
 
-Update ZulutimeMultiplayerMod on both computers and restart both games. A host can enable Ignore Mod Compatibility Checks (Own Risk) to admit a different multiplayer-mod build when both builds still use the same network protocol. A protocol mismatch cannot be ignored because the builds may encode network data differently.
+Update ZulutimeMultiplayerMod on both computers and restart both games. A host can enable Allow a Different Mod Build (Own Risk) to admit a different multiplayer-mod build when both builds still use the same network protocol. A protocol mismatch cannot be ignored because the builds may encode network data differently.
 
 See [Mod Version Issues](troubleshooting.md#mod-version-issues).
 
@@ -54,9 +54,9 @@ See [Disabling DLC](disable_dlc.md).
 
 ### Other mods are enabled
 
-The detail lists the other active mods that were detected. By default, hosting and joining are blocked because additional mods can change simulation behavior, tools, or prefab catalogs.
+The detail lists the other active mods that were detected. This build logs them and shows a warning. Hosting and joining continue, because additional mods can still change simulation behavior, tools, or prefab catalogs.
 
-Disable every other mod in the active playset and restart if the message says those mods are still loaded. Advanced users can enable Ignore Mod Compatibility Checks (Own Risk) on the mod's **Advanced** options tab while offline, but that can cause desyncs, broken cities, or crashes.
+A host on an older build can still refuse the join. Disable the listed mods if you need to connect to that host. Restart if the message says those mods are still loaded.
 
 See [Mod Support and Compatibility](mods.md).
 
@@ -64,9 +64,9 @@ See [Mod Support and Compatibility](mods.md).
 
 Possible internal detail: `Mod playset mismatch - you are missing: <mods>; the host is missing: <mods>; different versions: <mod> (host <version>, yours <version>).`
 
-When a player joins, the host compares the other active mods of both computers, including their versions, and names every difference. Enable the same mods in the same versions on both computers and restart the game. Find It and Asset Icon Library only change what one player sees and are not compared.
+When a player joins, the host compares the other active mods of both computers, including their versions, and names every difference. This build shows that difference as a warning and continues the session. An older host can still refuse the join. Enable the same mods in the same versions on both computers when you want to avoid the warning. Find It and Asset Icon Library only change what one player sees and are not compared.
 
-A host with Ignore Mod Compatibility Checks (Own Risk) enabled admits a differing set anyway and writes the difference to its log. That can cause desyncs, broken cities or crashes.
+A different list can cause desyncs, broken cities or crashes. The warning does not make the other mod multiplayer-aware.
 
 See [Mod Support and Compatibility](mods.md).
 
@@ -203,11 +203,11 @@ The installed game build is not in the mod's tested-version list. Multiplayer ma
 
 ### Other mods enabled
 
-In normal mode this warning blocks Host and Join. Disable the listed mods in the active playset. A warning sourced from `loaded assemblies (restart to clear)` requires a game restart after disabling them.
+This warning does not block Host or Join. The listed mods can still desync the city. A warning sourced from `loaded assemblies (restart to clear)` means they are still in memory after being disabled.
 
-### Compatibility check ignored
+### Different mod builds allowed
 
-Ignore Mod Compatibility Checks (Own Risk) is enabled while other mods are active, or a host admitted a different ZulutimeMultiplayerMod build. This is advisory but serious: desyncs, missing prefabs, broken saves, and crashes are possible. The network protocol, game version, and DLC set are still checked.
+Allow a Different Mod Build (Own Risk) is enabled, so a host will admit a different ZulutimeMultiplayerMod build. If other mods are also active, the same banner names them. This is advisory but serious: desyncs, missing prefabs, broken saves, and crashes are possible. The network protocol, game version, and DLC set are still checked.
 
 ### Invalid port or player limit
 
@@ -280,7 +280,7 @@ These messages normally appear only in logs. A single recovered warning does not
 | `[security] Auth failure`, `Refused`, `Dropping`, `Disconnecting` | A password attempt, rate limit, message direction, size, channel, origin, or protocol rule was rejected. Expected for unwanted traffic; investigate if it names a trusted player repeatedly. |
 | `Peer timed out`, `Handshake timed out`, transport send/receive queue warnings | A peer stopped responding or local networking could not keep up. Check connection stability and retry. |
 | `Blob`, `map transfer`, `World sync`, `world recovery`, `resync barrier` | Full-world transfer or recovery was stale, malformed, stalled, or could not complete. Use Sync World and inspect both peers' logs. |
-| `PrefabIndex`, `unknown prefab`, `unavailable prefab`, `no local match` | One machine could not resolve content named by another. Match DLC/mod content; if the own-risk setting is enabled, disable it and retry with identical playsets. |
+| `PrefabIndex`, `unknown prefab`, `unavailable prefab`, `no local match` | One machine could not resolve content named by another. Match DLC and mod content. A different mod list is allowed and is a common cause of this warning. |
 | `BuildSync`, `ObjectTool`, `MoveSync`, `UpgradeSync`, `VisualCustomizationSync` | A building/object operation was malformed, unsupported, missed, or could not be applied atomically. Stop building that item, then Sync World. |
 | `NetSync`, `NetApply`, `NetReplaceSync`, `NetUpgradeSync` | A road/network operation was incomplete, inconsistent, unsupported, rolled back, quarantined, or failed realization. Sync World; avoid repeating the exact road operation until the issue is reported. |
 | `DeleteSync` | A remote deletion was stale, unmatched, malformed, or could not build its delete definition. Sync World if the object differs between players. |
@@ -307,7 +307,7 @@ Include:
 
 1. The exact UI headline and detail.
 2. Whether each player used Steam Relay or Direct Connection.
-3. Whether Ignore Mod Compatibility Checks (Own Risk) was enabled and which other mods were active.
+3. Whether Allow a Different Mod Build (Own Risk) was enabled and which other mods were active.
 4. The game and ZulutimeMultiplayerMod versions from both computers.
 5. `CS2MP-flight.log` from `%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\Logs\` on the affected computers. Send it after the problem occurs and before repeatedly restarting, because later runs can rotate diagnostic history.
 

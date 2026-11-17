@@ -111,18 +111,19 @@ Both are ignored by the mod, so neither blocks a join.
 
 ## Other Mods Enabled
 
-Hosting and joining are blocked while any other mod is active in your Paradox Mods
-playset - including asset-only mods such as maps, prop packs and prefab packs.
+Other mods, including asset-only mods such as maps, prop packs and prefab packs, do not
+block hosting or joining. The banner and the log name them because they can desync the
+city, break a save, or crash the game. Use the same mods on every computer.
 
-1. Disable every other mod in your active playset. Traffic, Road Speed Adjuster, Anarchy,
-   Find It and Asset Icon Library are allowed; a playset with only this mod is the safest
-   setup.
-2. Wait a few seconds; the banner clears on its own.
-3. If it says the mods are *still loaded*, restart the game once.
+1. Traffic, Road Speed Adjuster, Anarchy, Find It and Asset Icon Library are the mods
+   this project maintains. A playset with only this mod is the safest setup.
+2. If the banner says the mods are *still loaded*, restart the game once after disabling
+   them. The banner clears on its own once they are gone, and Host and Join stay available
+   while it is showing.
 
-Advanced users can turn the check off under Options ▸ ZulutimeMultiplayerMod ▸ Advanced ▸
-Compatibility ▸ Ignore Mod Compatibility Checks (Own Risk), which permits other mods and
-mixed mod builds at the cost of desyncs, broken cities and crashes. Full details:
+A different ZulutimeMultiplayerMod build is still refused. A host can admit one under
+Options ▸ ZulutimeMultiplayerMod ▸ Advanced ▸ Compatibility ▸ Allow a Different Mod Build
+(Own Risk). That does not bypass the protocol, game version or DLC checks. Full details:
 [Mods and compatibility](mods.md).
 
 ## Menu issues

@@ -125,13 +125,13 @@ namespace CS2MultiplayerMod.Core.Session
             string modMismatch = DescribeModMismatch(_config.ModManifest, request.ModManifest);
             if (modMismatch != null)
             {
-                if (!_config.IgnoreModCompatibilityChecks)
-                {
-                    Reject(connection, ModMismatchMarker + modMismatch);
-                    return;
-                }
-                _log.Warn(LogTopic.Session, ModMismatchMarker + modMismatch +
-                    " The host chose to ignore this check at their own risk.");
+                // The lists are already on the wire. A difference is a warning, not a refusal:
+                // game version, DLC and this mod's own version are still enforced above.
+                peer.ModSetWarning = ModMismatchMarker + modMismatch;
+                _log.Warn(LogTopic.Session, "Mod lists differ for " +
+                    WireGuard.SanitizePlayerName(request.PlayerName) + " (" + connection + "): " +
+                    peer.ModSetWarning +
+                    " Admitting the player. Desyncs, broken saves, or crashes are possible.");
             }
 
             // Player cap (host counts as one seat).
@@ -190,7 +190,8 @@ namespace CS2MultiplayerMod.Core.Session
             peer.AwaitingApproval = false;
             peer.Handshaked = true;
 
-            SendTo(connection, HandshakeResponse.Accept(peer.PlayerId, _config.SimulationSync));
+            SendTo(connection, HandshakeResponse.Accept(
+                peer.PlayerId, _config.SimulationSync, peer.ModSetWarning));
             _log.Event(LogTopic.Session, "Accepted " + peer + ": mod " +
                 (string.IsNullOrEmpty(peer.ModVersion) ? "?" : peer.ModVersion) + " build " +
                 (string.IsNullOrEmpty(peer.BuildId) ? "?" : peer.BuildId) + ", game " +
@@ -431,6 +432,13 @@ namespace CS2MultiplayerMod.Core.Session
             LocalPlayerId = response.AssignedPlayerId;
             _hostSimulationSync = response.SimulationSync;
             if (peer != null) peer.Handshaked = true;
+            if (!string.IsNullOrEmpty(response.Reason) &&
+                response.Reason.StartsWith(ModMismatchMarker, StringComparison.Ordinal))
+            {
+                if (peer != null) peer.ModSetWarning = response.Reason;
+                _log.Warn(LogTopic.Session, response.Reason +
+                    " The session continues; desyncs, broken saves, or crashes are possible.");
+            }
             _log.Event(LogTopic.Session, "Join accepted by host; assigned player #" + LocalPlayerId +
                 ", simulation sync " + (_hostSimulationSync ? "on" : "off") +
                 ". Waiting for host world stream.");

@@ -17,10 +17,10 @@ using PlaysetMod = Colossal.PSI.Common.Mod;
 namespace CS2MultiplayerMod.Game
 {
     /// <summary>
-    /// Unsupported live mods; hosting and joining are refused while any is present. The active Paradox
-    /// playset is the source where readable: it tracks live toggles and lists asset-only mods. It reads
-    /// empty until the platform has synced, so it is re-read on an interval. Loaded assemblies are the
-    /// fallback, which only clears on restart.
+    /// Other live mods. They are logged and shown as a warning; they do not block hosting or joining.
+    /// The active Paradox playset is the source where readable: it tracks live toggles and lists
+    /// asset-only mods. It reads empty until the platform has synced, so it is re-read on an interval.
+    /// Loaded assemblies are the fallback, which only clears on restart.
     /// </summary>
     internal static class ModsCheck
     {
@@ -127,7 +127,11 @@ namespace CS2MultiplayerMod.Game
             LogChange(previous, _cached);
         }
 
-        /// <summary>Localized banner text naming the mods, or "" (hides the banner).</summary>
+        /// <summary>
+        /// Localized warning naming the other mods, or "" (hides the banner). The warning does not
+        /// block hosting or joining. <paramref name="ignored"/> selects the copy used when a different
+        /// build of this mod is also being admitted.
+        /// </summary>
         public static string BlockText(bool ignored = false)
         {
             string[] names = OtherModNames;
@@ -415,9 +419,10 @@ namespace CS2MultiplayerMod.Game
             string source = _restartRequired ? "loaded assemblies (restart to clear)" : "active playset";
             SyncLog.Event(LogTopic.Startup,
                 current.Length == 0
-                    ? "No unsupported mods are active - multiplayer is available."
-                    : "Unsupported mods are active, from the " + source + ": " +
-                      string.Join(", ", current) + ".");
+                    ? "No other mods are active."
+                    : "Other mods are active, from the " + source + ": " +
+                      string.Join(", ", current) +
+                      ". They do not block hosting or joining; they can still desync the session.");
         }
 
         private static void WarnOnce(string source, Exception ex)

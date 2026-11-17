@@ -71,46 +71,44 @@ Status: Works / Partially Works / Doesn't Work
 Details: What works, what doesn't, and whether there are host/client limitations.
 ```
 
-## Other mods are blocked
+## Other mods are warned about
 
-Hosting and joining are blocked while any unsupported mod is active, and a host rejects
-players running a different ZulutimeMultiplayerMod build. Nothing in the synchronization layer
-accounts for an unverified third party changing prefabs, tools or the simulation, so one
-unsupported mod on one machine is enough to desync the session or crash the other player.
+Other mods do not block hosting or joining. The active playset is still read, including
+asset-only mods such as maps, prop packs and prefab packs, and the names are written to
+the log and shown in a warning banner. Nothing in the synchronization layer accounts for
+an unverified third party changing prefabs, tools or the simulation, so one extra mod on
+one machine can still desync the session or crash the other player. Mods in your other
+playsets are not enabled for this run and are ignored.
 
-The check reads your active Paradox Mods playset. That includes asset-only mods such as
-maps, prop packs and prefab packs, which load no code at all. Mods in your other playsets
-are not enabled for this run and are ignored.
+When a player joins, the host compares both players' other active mods, including their
+versions, and both sides see a warning that names the difference. The join continues.
+This applies to the supported mods above too: Traffic, Anarchy or Road Speed Adjuster on
+only one computer changes what the game builds there. Find It and Asset Icon Library only
+change what one player sees and are not compared.
 
-When a player joins, the host also compares both players' other active mods, including
-their versions, and rejects the join with the exact difference. This applies to the
-supported mods above too: Traffic, Anarchy or Road Speed Adjuster on only one computer
-changes what the game builds there. Find It and Asset Icon Library only change what one
-player sees and are not compared.
+A different ZulutimeMultiplayerMod build is still refused, unless the host turns on Allow
+a Different Mod Build (Own Risk). The network protocol, the Cities: Skylines II version
+and the DLC set are always checked.
 
 | Banner | Meaning |
 | --- | --- |
-| Other Mods Enabled | Host and Join are blocked; the listed mods have to be disabled |
-| Other Mods Enabled, still loaded | Already disabled in the playset, but still in memory - restart the game once |
-| Compatibility Check Ignored | Other mods are active and the own-risk override is on |
+| Other mods enabled | The listed mods are active. Host and Join stay available. Desyncs are possible. |
+| Other mods enabled, still loaded | Already disabled in the playset, but still in memory. Restart the game once to unload them. Host and Join stay available. |
+| Different mod builds allowed | Other mods are active, and the host will also admit a different build of this mod. |
 
-To clear the block:
-
-1. Disable every unsupported mod in your active playset. A playset that contains only ZulutimeMultiplayerMod plus Traffic, Road Speed Adjuster, Anarchy, Find It and Asset Icon
-   Library is allowed; every other mod in the list above still needs the override below.
-2. Go back to the game and wait a few seconds for the banner to clear.
-3. If the banner says the mods are still loaded, restart the game.
+Using the same playset on every computer is still the safe setup. A playset that contains
+only ZulutimeMultiplayerMod plus Traffic, Road Speed Adjuster, Anarchy, Find It and Asset
+Icon Library is the one this project maintains.
 
 ---
 
-## Turning the check off
+## Allowing a different build of this mod
 
-Options ▸ ZulutimeMultiplayerMod ▸ Advanced ▸ Compatibility ▸ Ignore Mod Compatibility Checks
+Options ▸ ZulutimeMultiplayerMod ▸ Advanced ▸ Compatibility ▸ Allow a Different Mod Build
 (Own Risk). It can only be changed while offline, before hosting or joining.
 
-With it on, other active mods no longer block hosting or joining on your machine, and a
-host also admits players on a different ZulutimeMultiplayerMod build or with different other
-mods, as long as the network protocol matches.
+With it on, a host admits players on a different ZulutimeMultiplayerMod build, as long as
+the network protocol matches. Other mods are warned about whether or not this is on.
 
 It does not bypass:
 
@@ -118,17 +116,15 @@ It does not bypass:
 - the Cities: Skylines II version check, or
 - the DLC check.
 
-It also does not make another mod multiplayer-aware. Use the same playset
-on every computer where possible, and expect desyncs, missing prefabs, broken cities or
-crashes. The host decides whether different multiplayer-mod builds and different mod sets
-are admitted; each player decides whether their own extra mods are allowed locally.
+It also does not make another mod multiplayer-aware. Expect desyncs, missing prefabs,
+broken cities or crashes when the mod lists or the builds differ.
 
 ---
 
 ## Other mod compatibility
 
-Mods not listed under official support are unverified and remain blocked by default. This
-includes mods that may appear to be display-only or UI-only: without verification, the
-multiplayer developers cannot guarantee that they will not change synchronized state.
+Mods not listed under official support are unverified. They no longer block a session,
+and they are not guaranteed to leave synchronized state alone. This includes mods that
+may appear to be display-only or UI-only.
 
 ---

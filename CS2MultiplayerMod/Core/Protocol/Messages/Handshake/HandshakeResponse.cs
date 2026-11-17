@@ -1,6 +1,9 @@
 namespace CS2MultiplayerMod.Core.Protocol.Messages
 {
-    /// <summary>Accepted: player id and simulation-sync choice. Rejected: a readable reason.</summary>
+        /// <summary>
+        /// Accepted: player id, simulation-sync choice, and an optional advisory in <see cref="Reason"/>
+        /// (a mod-list difference). Rejected: a readable reason. An advisory does not change the layout.
+        /// </summary>
     public sealed class HandshakeResponse : INetMessage
     {
         public bool Accepted;
@@ -15,12 +18,12 @@ namespace CS2MultiplayerMod.Core.Protocol.Messages
 
         public HandshakeResponse() { }
 
-        public static HandshakeResponse Accept(int playerId, bool simulationSync = true) =>
+        public static HandshakeResponse Accept(int playerId, bool simulationSync = true, string advisory = null) =>
             new HandshakeResponse
             {
                 Accepted = true,
                 AssignedPlayerId = playerId,
-                Reason = null,
+                Reason = string.IsNullOrEmpty(advisory) ? null : advisory,
                 SimulationSync = simulationSync,
             };
 

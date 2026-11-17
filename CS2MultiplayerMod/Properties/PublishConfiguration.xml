@@ -56,11 +56,12 @@ Full guides, including port forwarding and every error message: https://cs2multi
 
 ## Compatibility with other modifications
 
-- Hosting and joining are blocked while any unsupported mod is active in your playset, including asset-only mods such as maps, prop packs and prefab packs. Nothing in the sync layer accounts for an unverified mod changing prefabs, tools or the simulation, so one unsupported mod on one PC is enough to desync or crash the session.
-- Officially supported, tested and maintained: Traffic, Road Speed Adjuster, Anarchy, Find It and Asset Icon Library. These never block a session.
+- Other mods no longer block hosting or joining, including asset-only mods such as maps, prop packs and prefab packs. They are logged and shown as a warning. Nothing in the sync layer accounts for an unverified mod changing prefabs, tools or the simulation, so one extra mod on one PC can still desync or crash the session.
+- Officially supported, tested and maintained: Traffic, Road Speed Adjuster, Anarchy, Find It and Asset Icon Library.
 - Durable state belonging to compatible mods, such as Traffic's custom lane connections, is synchronized between players.
-- Options, ZulutimeMultiplayerMod, General, Ignore Mod Compatibility Checks (Own Risk) lifts the local block for advanced users. It does not bypass the network protocol, game version or DLC checks, and it does not make another mod multiplayer-aware.
-- Every player needs the same mod list. The safest playset is this mod plus the supported ones above.
+- When a player joins, a different mod list is a warning on both sides, not a refusal. Find It and Asset Icon Library are not compared.
+- Options, ZulutimeMultiplayerMod, Advanced, Allow a Different Mod Build (Own Risk) admits a different build of this mod. It does not bypass the network protocol, game version or DLC checks, and it does not make another mod multiplayer-aware.
+- The safest playset is this mod plus the supported ones above, with the same list on every computer.
 
 ## Saving
 

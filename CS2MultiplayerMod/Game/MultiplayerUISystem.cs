@@ -134,7 +134,7 @@ namespace CS2MultiplayerMod.Game
             AddUpdateBinding(new GetterValueBinding<string>(Group, "versionWarning",
                 () => GameVersionCheck.WarningText()));
 
-            // Other live mods: localized sentence, or "" (hidden); the ignored flag decides block vs warning.
+            // Other live mods: localized warning, or "" (hidden). It does not disable host or join.
             AddUpdateBinding(new GetterValueBinding<string>(Group, "modsBlocked",
                 () => ModsCheck.BlockText(Mod.Setting != null &&
                                            Mod.Setting.IgnoreModCompatibilityChecks)));

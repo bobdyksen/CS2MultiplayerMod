@@ -7,6 +7,10 @@ description: "Read the Cities: Skylines II Multiplayer Mod release notes, includ
 
 # Changelog
 
+## Unreleased
+
+* Other mods no longer block hosting or joining. They are logged and shown as a warning, and a different mod list between host and client is a warning rather than a refusal. Game version, DLC, the network protocol, and a different ZulutimeMultiplayerMod build are still checked. Allow a Different Mod Build (Own Risk) is what admits another build of this mod.
+
 ## Version 0.1.7.4 - 2026-11-16
 
 This update fixes several causes of the city reloading for no reason and of the population slowly drifting apart between host and clients. Players now also stay connected while their computer loads a large city, and aquaculture areas and their fishing piers work in multiplayer.
