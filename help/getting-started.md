@@ -10,8 +10,9 @@ description: "Set up the Cities: Skylines II Multiplayer Mod with Paradox Mods. 
 
 - Cities: Skylines II via Steam, Xbox App, Microsoft Store or Game Pass.
 - The same mod version on every computer.
-- The same gameplay DLC enabled everywhere. Radio station DLC does not matter, and CS1
-  Treasure Hunt is ignored because it cannot be disabled. See [Disabling DLC](disable_dlc.md).
+- The same gameplay DLC enabled everywhere. Radio station DLC does not matter, and the
+  account rewards CS1 Treasure Hunt and Newsletter are ignored because they cannot be
+  disabled. See [Disabling DLC](disable_dlc.md).
 - Other mods are allowed, including Traffic. They do not block hosting or joining, but
   they can desync the city, so use the same mods on every computer. See
   [Mods and compatibility](mods.md).

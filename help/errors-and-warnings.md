@@ -48,7 +48,7 @@ See [Game Version Issues](troubleshooting.md#game-version-issues).
 
 ### The enabled DLCs do not match
 
-The detailed message names DLC the joining player or host is missing. Both machines need the same sync-relevant DLC set. The own-risk mod setting does not bypass this check.
+The detailed message names DLC the joining player or host is missing. Both machines need the same sync-relevant DLC set. The own-risk mod setting does not bypass this check. Radio packs and the account rewards CS1 Treasure Hunt and Newsletter are not compared.
 
 See [Disabling DLC](disable_dlc.md).
 
@@ -199,7 +199,7 @@ Clients normally pause autosave while using the host's temporary world and resto
 
 ### Untested game version
 
-The installed game build is not in the mod's tested-version list. Multiplayer may still work, but a game update can change simulation or UI behavior. Check for a mod update.
+The installed game build is not in the mod's tested-version list. Multiplayer may still work, but a game update can change simulation or UI behavior. Check for a mod update. Patch 1.6.4f1 (Seasonal Shift) is not in that list yet; the warning does not block a session when every player is on the same game version.
 
 ### Other mods enabled
 
