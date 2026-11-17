@@ -20,12 +20,12 @@ The mod is in active development, so bugs can still turn up - report anything yo
 - Cities: Skylines II (PC Version: Steam, XBox, Gamepass)
 - All players need to run the same version of the mod.
 - Players need also the same DLCs. Radio Station DLC are unaffected. Learn how to disable DLC: [Disabling DLC](https://cs2multiplayer.rollocraft.me/disable_dlc/)
-- No other mods, except the supported ones: Traffic, Road Speed Adjuster, Anarchy, Find It and Asset Icon Library. See [Mods and compatibility](https://cs2multiplayer.rollocraft.me/mods/).
+- Other mods, including Traffic, do not block hosting or joining. They are logged and shown as a warning, and they can desync the city, so use the same mods on every computer. See [Mods and compatibility](https://cs2multiplayer.rollocraft.me/mods/).
 - Internet play: Steam Relay needs no setup. Direct connection needs the host's TCP port to be reachable (the mod asks the router to open it automatically), IPv6, or a VPN such as [Hamachi](https://cs2multiplayer.rollocraft.me/hamachi/).
 
 ## Installation
 
-The easiest way is through **Paradox Mods**: find the mod, add it to an **empty** playset, enable it, and restart the game if Cities: Skylines II asks you to.
+The easiest way is through **Paradox Mods**: find the mod, add it to a playset, enable it, and restart the game if Cities: Skylines II asks you to. An empty playset is the safest setup; other mods are allowed and warned about.
 
 [**PDXMods**](https://mods.paradoxplaza.com/mods/150432/Windows)
 

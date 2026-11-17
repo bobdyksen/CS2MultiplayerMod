@@ -64,11 +64,10 @@ namespace CS2MultiplayerMod
 
         public bool IsNotHosting() => !IsHosting();
 
-        /// <summary>Also true while another mod is live: the options screen's Host button reaches the service directly.</summary>
+        /// <summary>True while no world is loaded or a session is already running. Other mods do not disable hosting.</summary>
         public bool CannotStartHost()
         {
-            return IsNotInGame() || !IsNotInSession() ||
-                   (CS2MultiplayerMod.Game.ModsCheck.AnyOtherMods && !IgnoreModCompatibilityChecks);
+            return IsNotInGame() || !IsNotInSession();
         }
 
         /// <summary>No relay backend (Microsoft Store / Game Pass): the picker is hidden and direct is used.</summary>
@@ -448,8 +447,8 @@ namespace CS2MultiplayerMod
         // ---- Advanced tab -------------------------------------------------------
 
         /// <summary>
-        /// Expert override for mod-specific checks: permits other live mods and admits a different build of
-        /// this mod. Protocol, game-version and DLC checks stay mandatory.
+        /// Admits a different build of this mod when hosting. Other mods are warned about and never
+        /// block. Protocol, game-version and DLC checks stay mandatory.
         /// </summary>
         [SettingsUISection(AdvancedTab, CompatibilityGroup)]
         [SettingsUIDisableByCondition(typeof(Setting), nameof(IsInSession))]

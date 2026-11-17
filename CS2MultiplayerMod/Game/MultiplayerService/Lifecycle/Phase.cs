@@ -138,27 +138,17 @@ namespace CS2MultiplayerMod.Game
         }
 
         /// <summary>
-        /// Refuses while another mod is live and records the fault. Enforced here because the options
-        /// screen and hub reach these entry points directly. True when the caller must stop.
+        /// Logs other live mods. They do not block hosting or joining; the banner warns, and a
+        /// mismatched playset is warned about at the handshake. Game version and DLC still block.
         /// </summary>
-        private bool RefuseForOtherMods(string action)
+        private void NoteOtherMods(string action)
         {
             string detail = ModsCheck.FaultDetail();
-            if (detail.Length == 0) return false;
+            if (detail.Length == 0) return;
 
-            if (Mod.Setting != null && Mod.Setting.IgnoreModCompatibilityChecks)
-            {
-                _log.Warn(LogTopic.Session,
-                    "Ignoring the other-mod compatibility check while trying to " + action +
-                    " at the player's own risk: " + detail + ".");
-                return false;
-            }
-
-            _lastFault = detail;
-            _log.Warn(LogTopic.Session, "Cannot " + action + ": " + detail +
-                ". Multiplayer runs only with ZulutimeMultiplayerMod alone - disable the " +
-                "others in the active playset and restart the game.");
-            return true;
+            _log.Warn(LogTopic.Session,
+                "Other mods are active while trying to " + action +
+                ". They do not block this session, but they can desync or crash it: " + detail + ".");
         }
 
         /// <summary>
@@ -203,19 +193,19 @@ namespace CS2MultiplayerMod.Game
                    " build=" + config.BuildId;
         }
 
-        /// <summary>This machine's unsupported mods and whether they block; the handshake compares the full set.</summary>
+        /// <summary>This machine's other mods, and whether a different build of this mod is admitted.</summary>
         private static string LocalModsText(Setting settings)
         {
             bool bypassed = settings != null && settings.IgnoreModCompatibilityChecks;
             return " otherMods=" + ModsCheck.Summary() +
-                   " modChecks=" + (bypassed ? "bypassed" : "enforced");
+                   " modVersionCheck=" + (bypassed ? "bypassed" : "enforced");
         }
 
         public void HostFromSettings(Setting settings)
         {
             if (!ModEnabled) { _log.Warn(LogTopic.Session, "Cannot host: the mod is disabled in settings."); return; }
             if (_session.Role != SessionRole.None) { _log.Warn(LogTopic.Session, "Cannot host: a session is already active."); return; }
-            if (RefuseForOtherMods("host")) return;
+            NoteOtherMods("host");
             if (RefuseForPublicPassword(settings)) return;
             _disconnectConfirmationRequested = false;
             ClearClientExitNotice();
@@ -244,7 +234,7 @@ namespace CS2MultiplayerMod.Game
         {
             if (!ModEnabled) { _log.Warn(LogTopic.Session, "Cannot join: the mod is disabled in settings."); return; }
             if (_session.Role != SessionRole.None) { _log.Warn(LogTopic.Session, "Cannot join: a session is already active."); return; }
-            if (RefuseForOtherMods("join")) return;
+            NoteOtherMods("join");
             _disconnectConfirmationRequested = false;
             ClearClientExitNotice();
             ResetCommandDiagnostics();

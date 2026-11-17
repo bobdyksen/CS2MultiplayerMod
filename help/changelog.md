@@ -7,6 +7,10 @@ description: "Read the Cities: Skylines II Multiplayer Mod release notes, includ
 
 # Changelog
 
+## Unreleased
+
+* Other mods no longer block hosting or joining. They are logged and shown as a warning, and a different mod list between host and client is a warning rather than a refusal. Game version, DLC, the network protocol, and a different ZulutimeMultiplayerMod build are still checked. Allow a Different Mod Build (Own Risk) is what admits another build of this mod.
+
 ## Version 0.1.7.3 - 2026-10-25
 
 This update fixes sessions getting stuck on "Syncing World" while a large fire, such as a forest fire, was burning in the city.

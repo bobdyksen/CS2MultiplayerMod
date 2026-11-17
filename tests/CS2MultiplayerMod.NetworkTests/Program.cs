@@ -7,8 +7,10 @@ using System.Threading;
 using CS2MultiplayerMod.Core.Diagnostics;
 using CS2MultiplayerMod.Core.Networking;
 using CS2MultiplayerMod.Core.Networking.Tcp;
+using CS2MultiplayerMod.Core.Protocol.Messages;
 using CS2MultiplayerMod.Core.Session;
 
+CheckModLists();
 SessionFeedChecks.Run(Check);
 
 // What a player may type as the host address.
@@ -90,6 +92,22 @@ static void CheckConnects(TcpServerTransport host, string address, int port, str
     Check(joined && remote != null, "joining " + address + " timed out");
     Check(expectedRemote == null || remote == expectedRemote,
         "the host should see " + expectedRemote + " when joined via " + address + ", saw " + remote);
+}
+
+static void CheckModLists()
+{
+    string traffic = ModManifestEntry.Format("80095", "1.2.3", "Traffic");
+    Check(MultiplayerSession.DescribeModMismatch(new[] { traffic }, new[] { traffic }) == null,
+        "identical mod lists are not a difference");
+
+    string other = ModManifestEntry.Format("1", "1.0", "Example Mod");
+    string diff = MultiplayerSession.DescribeModMismatch(new[] { traffic }, new[] { other });
+    Check(diff != null && diff.Contains("Example Mod") && diff.Contains("Traffic"),
+        "different mod lists name both sides");
+    Check(diff.Contains("you are missing") && diff.Contains("the host is missing"),
+        "the warning names who is missing which mod");
+    Check(MultiplayerSession.ModMismatchMarker.StartsWith("Mod playset mismatch"),
+        "mod-list warnings keep the marker the status screen already knows");
 }
 
 static void Check(bool condition, string message)

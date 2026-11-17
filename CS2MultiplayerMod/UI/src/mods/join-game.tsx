@@ -16,7 +16,7 @@ import {
 } from "mods/connection-picker";
 import { DisclaimerModal, disclaimerAccepted$ } from "mods/disclaimer";
 import { MultiplayerJoinLoadingScreen } from "mods/loading-screen";
-import { OtherModsBanner, useModsBlocked } from "mods/mods-banner";
+import { OtherModsBanner } from "mods/mods-banner";
 import { FormField, FormFieldProps } from "mods/form-field";
 import { MULTIPLAYER_BLUE } from "mods/multiplayer-theme";
 import { RESYNC_ALLOW, RESYNC_LOC, ResyncPolicyDropdown } from "mods/resync-policy";
@@ -689,9 +689,7 @@ export const MultiplayerScreenRenderer = ({ focusKey, className, onClose }: Nati
     const joinConnection = useValue(joinConnection$);
     const joinCodeInput = useValue(joinCodeInput$);
     const hasSavedGame = useValue(savedGames$).length > 0;
-    // Any other live mod blocks a session by default. The own-risk setting turns the
-    // banner into a warning and this hook re-enables the controls.
-    const modsBlocked = useModsBlocked();
+    // Other mods show a warning banner and do not disable these controls.
     const relaySupported = useValue(relaySupported$);
     const joinIsRelay = relaySupported && joinConnection !== CONNECTION_DIRECT;
     const hostPasswordMissing = useHostPasswordMissing();
@@ -832,14 +830,11 @@ export const MultiplayerScreenRenderer = ({ focusKey, className, onClose }: Nati
             debugName="CS2MP Multiplayer Choice"
             initialFocused="join-game"
             wide={relaySupported}>
-            {/* Greyed out for the same reason as Host Game, rather than letting the
-                player into the form to find Join disabled there. Still reachable while
-                a session runs: this tile is the only route to Disconnect. */}
+            {/* Still reachable while a session runs: this tile is the only route to Disconnect. */}
             <ChoiceTile
                 focusKey="join-game"
                 icon="Media/Glyphs/Passenger.svg"
                 label={t(LOC.joinGame, "Join Game")}
-                disabled={modsBlocked && !inSession}
                 onSelect={() => openView("join")}
             />
             {/* Steam copies only: the list lives in Steam's lobby directory. */}
@@ -848,7 +843,7 @@ export const MultiplayerScreenRenderer = ({ focusKey, className, onClose }: Nati
                     focusKey="browse-servers"
                     icon={serverListIcon}
                     label={t(LOC.publicLobbies, "Public Lobbies")}
-                    disabled={inSession || modsBlocked}
+                    disabled={inSession}
                     onSelect={() => openView("browse")}
                 />
             )}
@@ -856,7 +851,7 @@ export const MultiplayerScreenRenderer = ({ focusKey, className, onClose }: Nati
                 focusKey="host-game"
                 icon="Media/Glyphs/Residence.svg"
                 label={t(LOC.hostGame, "Host Game")}
-                disabled={inSession || modsBlocked}
+                disabled={inSession}
                 onSelect={() => openView("host")}
             />
         </ChoiceScreen>
@@ -870,14 +865,14 @@ export const MultiplayerScreenRenderer = ({ focusKey, className, onClose }: Nati
                 focusKey="load-world"
                 icon="Media/Glyphs/Progress.svg"
                 label={t(LOC.loadWorld, "Load World")}
-                disabled={!hasSavedGame || inSession || modsBlocked || hostPasswordMissing}
+                disabled={!hasSavedGame || inSession || hostPasswordMissing}
                 onSelect={() => openHostWorld("hostLoadWorld")}
             />
             <ChoiceTile
                 focusKey="create-world"
                 icon="Media/Glyphs/Plus.svg"
                 label={t(LOC.createWorld, "Create World")}
-                disabled={inSession || modsBlocked || hostPasswordMissing}
+                disabled={inSession || hostPasswordMissing}
                 onSelect={() => openHostWorld("hostCreateWorld")}
             />
         </ChoiceScreen>

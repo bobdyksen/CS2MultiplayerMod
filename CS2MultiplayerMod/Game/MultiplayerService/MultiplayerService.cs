@@ -499,6 +499,15 @@ namespace CS2MultiplayerMod.Game
             public override void OnPeerJoined(Peer peer)
             {
                 _log.Event(LogTopic.Session, "Peer joined: " + peer);
+                if (!string.IsNullOrEmpty(peer.ModSetWarning))
+                {
+                    bool hosting = _service._session.Role == SessionRole.Host;
+                    string text = hosting
+                        ? L10n.F("CS2MP.Activity.ModSetDifferHost",
+                            string.IsNullOrEmpty(peer.Name) ? "?" : peer.Name)
+                        : L10n.F("CS2MP.Activity.ModSetDifferClient", peer.ModSetWarning);
+                    _service.AppendSessionActivity(text, error: true);
+                }
                 _service.RefreshPlayerListJson();
                 // WorldResyncSystem observes joins too and pushes the live world to the newcomer.
             }

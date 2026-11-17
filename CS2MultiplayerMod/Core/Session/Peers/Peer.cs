@@ -59,6 +59,12 @@ namespace CS2MultiplayerMod.Core.Session
         /// <summary>The peer's game version, for the same reason as <see cref="ModVersion"/>.</summary>
         public string GameVersion;
 
+        /// <summary>
+        /// Set when this peer's other-mod list differs from ours. Sent to the joiner on accept and
+        /// shown as a warning. It does not reject the handshake.
+        /// </summary>
+        public string ModSetWarning;
+
         /// <summary>Host-side: traffic budgets for everything this peer sends.</summary>
         public readonly PeerRateLimiter RateLimiter = new PeerRateLimiter();
 

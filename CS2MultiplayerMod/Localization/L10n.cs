@@ -25,7 +25,7 @@ namespace CS2MultiplayerMod.Localization
             // Options version row for local builds. {0} = mod version, {1} = build stamp, {2} = protocol.
             public const string VersionLineDev = "CS2MP.UI.VersionLineDev";
 
-            // -- Other-mods block (host and join are both refused while any is live) --
+            // -- Other-mods warning (logged and shown; host and join stay available) --
             // {0} = comma-separated names of the other live mods.
             public const string UiModsBlocked = "CS2MP.UI.ModsBlocked";
             // A block from the loaded-assembly fallback clears only on restart.

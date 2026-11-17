@@ -9,17 +9,9 @@ const LOC = {
 };
 
 // Localized sentence built C#-side (it names the other mods). Empty when this mod
-// is the only one live. With the own-risk override it remains visible as a warning.
+// is the only one live. Visible as a warning either way; it does not disable host or join.
 export const modsBlocked$ = bindValue<string>(GROUP, "modsBlocked", "");
 const modsCheckIgnored$ = bindValue<boolean>(GROUP, "modsCheckIgnored", false);
-
-/** Whether other mods are blocking multiplayer. The own-risk override turns the same
- *  detection into an advisory notice instead. */
-export const useModsBlocked = () => {
-    const notice = useValue(modsBlocked$);
-    const ignored = useValue(modsCheckIgnored$);
-    return notice.length > 0 && !ignored;
-};
 
 const styles: Record<string, CSSProperties> = {
     banner: {
@@ -71,9 +63,9 @@ const styles: Record<string, CSSProperties> = {
 };
 
 /**
- * Notice shown on the Join dialog, Host world picker and in-game hub whenever any mod
- * other than this one is live. It blocks by default and becomes an explicit own-risk
- * warning when the compatibility override is enabled.
+ * Warning shown on the Join dialog, Host world picker and in-game hub whenever any mod
+ * other than this one is live. Host and Join stay available. The title changes when a
+ * different build of this mod is also being admitted.
  */
 export const OtherModsBanner = ({ style }: { style?: CSSProperties }) => {
     const t = useT();

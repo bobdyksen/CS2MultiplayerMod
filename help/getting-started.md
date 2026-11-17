@@ -12,8 +12,8 @@ description: "Set up the Cities: Skylines II Multiplayer Mod with Paradox Mods. 
 - The same mod version on every computer.
 - The same gameplay DLC enabled everywhere. Radio station DLC does not matter, and CS1
   Treasure Hunt is ignored because it cannot be disabled. See [Disabling DLC](disable_dlc.md).
-- No other mods, except the supported ones: Traffic, Road Speed Adjuster, Anarchy, Find It
-  and Asset Icon Library. Any other active mod blocks hosting and joining - see
+- Other mods are allowed, including Traffic. They do not block hosting or joining, but
+  they can desync the city, so use the same mods on every computer. See
   [Mods and compatibility](mods.md).
 - A connection type both sides agree on: [Steam Relay](steam-relay.md) or a
   [direct connection](direct-connection.md).
@@ -21,7 +21,7 @@ description: "Set up the Cities: Skylines II Multiplayer Mod with Paradox Mods. 
 ## Install { #install }
 
 1. Find ZulutimeMultiplayerMod on [Paradox Mods](https://mods.paradoxplaza.com/mods/150432/Windows).
-2. Add it to an empty playset and enable it.
+2. Add it to a playset and enable it. An empty playset is the safest setup; other mods are allowed and warned about.
 3. Restart Cities: Skylines II if the game asks you to.
 
 Open Options afterwards. If ZulutimeMultiplayerMod does not appear there, follow
