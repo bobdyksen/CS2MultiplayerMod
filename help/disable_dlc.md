@@ -31,7 +31,8 @@ In the Settings app:
 
 ---
 
-The CS1 Treasure Hunt DLC cannot be disabled, so the mod no longer compares it — you can join
-each other whether or not you own Cities: Skylines 1.
+The CS1 Treasure Hunt reward cannot be disabled, so the mod no longer compares it — you can join
+each other whether or not you own Cities: Skylines 1. The Newsletter reward is ignored the same
+way: owning it does not block a join.
 
 ---

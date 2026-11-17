@@ -49,7 +49,7 @@ Full guides, including port forwarding and every error message: https://cs2multi
 
 - Citizens, vehicles, tourists and pets are not replicated one by one. Each PC runs its own agents, so traffic and crowds can look different on each screen while the city, its buildings and its finances stay in sync.
 - The host owns the session save. A joining player plays in a temporary downloaded copy of the city, and changes made after the connection ends cannot be sent back. Use Save Copy to keep it.
-- Every player needs the same mod version, the same game version and the same gameplay DLC. Radio station DLC does not matter, and CS1 Treasure Hunt is ignored because it cannot be disabled.
+- Every player needs the same mod version, the same game version and the same gameplay DLC. Radio station DLC does not matter, and the account rewards CS1 Treasure Hunt and Newsletter are ignored because they cannot be disabled.
 - Steam Relay hosting needs the Steam copy of the game, launched through Steam and online. Microsoft Store, Game Pass and Xbox App copies host over a direct connection instead.
 - Joining a very large city takes a while, because the whole world is transferred first.
 - The session can still decide to resync a player: the world reloads from the host and play continues. Reducing the remaining causes is ongoing work.
@@ -100,7 +100,7 @@ This project is not affiliated with, endorsed by, or sponsored by Colossal Order
 	<!--Link to the forum post where the mod can be discussed-->
 	<ForumLink Value="https://forum.paradoxplaza.com/forum/threads/mod-cs2-multiplayer.1944104/" />
 	<!--Version of the mod-->
-	<ModVersion Value="0.1.7.3" />
+	<ModVersion Value="0.1.7.4" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.6.*" />
 	<!--Dependency for the mod, can be set multiple times-->
@@ -109,7 +109,7 @@ This project is not affiliated with, endorsed by, or sponsored by Colossal Order
 	<RequiredDLC Value="" />
 	<!--Change log for new version. Single line or multi line. Supports minimal markdown subset-->
 	<ChangeLog>
-		Fixed issues with the fire and accident sync
+		Fixed resync issues and new Newsletter dlc
 	</ChangeLog>
 	<!--External link, can be set multiple times. supported types are "discord", "github", "youtube", "twitch", "x", "paypal", "patreon", "buymeacoffee", "kofi", "crowdin", "gitlab", "gofundme"-->
 	<ExternalLink Type="discord" Url="https://discord.gg/KFZTW2YSJt" />

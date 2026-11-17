@@ -98,7 +98,7 @@ Still having issues? Remove the mod on PDXMods. Restart the game. Reinstall the 
 
 ## Game Version Issues
 
-Check that you have the same game version as the people you are trying to play with. You can find the game version in the bottom left of the Main Menu when you start the game. The beginning should look similar to this: `1.6.2f1`. If not, update your game through Steam or XBox/Gamepass.
+Check that you have the same game version as the people you are trying to play with. You can find the game version in the bottom left of the Main Menu when you start the game. The beginning should look similar to this: `1.6.4f1`. If not, update your game through Steam or XBox/Gamepass. A build this mod has not listed as tested still shows a warning, and that warning does not block hosting or joining when every player is on the same game version.
 
 Still having issues? [Verify Game Files](verify_files.md) (Steam: Right-click Game => Properties => Installed Files => Verify Integrity of game files; [XBox/Gamepass (click)](verify_files.md)).
 
@@ -106,8 +106,8 @@ Still having issues? [Verify Game Files](verify_files.md) (Steam: Right-click Ga
 
 Check that you have the same DLC enabled as the people you are trying to play with. [Learn how to disable DLC.](disable_dlc.md)
 
-Cannot disable the CS1 Treasure Hunt DLC? It is ignored by the mod, so it never blocks a
-join.
+Cannot disable the CS1 Treasure Hunt reward, or only one of you has the Newsletter reward?
+Both are ignored by the mod, so neither blocks a join.
 
 ## Other Mods Enabled
 
